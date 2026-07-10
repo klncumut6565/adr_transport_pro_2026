@@ -84,13 +84,13 @@ class TestDatabase:
 class TestSecurityPlan:
     def test_un1203_exempt_static_screening(self):
         r = webcore.SecurityPlanEngine.screen_inventory_chemical({
-            "un_number": "1203", "name": "BENZİN", "adr_class": "3",
+            "un_number": "1203", "name": "BENZİN", "class_code": "3",
             "packing_group": "II", "classification_code": "F1"})
         assert r.get("in_scope") is False
 
     def test_class1_in_scope(self):
         r = webcore.SecurityPlanEngine.screen_inventory_chemical({
             "un_number": "0081", "name": "PATLAYICI TIP A",
-            "adr_class": "1", "packing_group": "",
+            "class_code": "1", "packing_group": "",
             "classification_code": "1.1D"})
         assert r.get("in_scope") in (True, "conditional")
