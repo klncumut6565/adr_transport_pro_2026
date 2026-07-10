@@ -1,0 +1,14 @@
+# ADR Transport Document Generator v2.1 - Dependencies
+# Python 3.8+
+
+# PDF Export (ReportLab)
+reportlab>=3.6.0
+
+# Excel Export (openpyxl)
+openpyxl>=3.0.0
+
+# Standard library modules used:
+#   tkinter (built-in), json, os, sys, logging, datetime, 
+#   threading, re, typing, ctypes
+qrcode
+Pillow
