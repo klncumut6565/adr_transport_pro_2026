@@ -9,7 +9,7 @@ gösterir.
 """
 import streamlit as st
 
-from sayfalar._ortak import db
+from sayfalar._ortak import db, kimyasal_etiket
 from webcore.engines import ADREngine
 from webcore.models import ShipmentItem
 
@@ -28,12 +28,16 @@ with st.expander("➕ Kimyasal ara ve ekle", expanded=not kalemler):
     if bulunanlar:
         secili = st.selectbox(
             "Bulunan maddeler", bulunanlar,
-            format_func=lambda c: f"UN{c.un_number} — {c.proper_shipping_name_tr or c.proper_shipping_name_en}",
+            format_func=kimyasal_etiket,
             key="mix_secili")
         if st.button("Listeye ekle", type="primary"):
-            zaten_var = any(k["un_number"] == secili.un_number for k in kalemler)
+            zaten_var = any(
+                k["un_number"] == secili.un_number
+                and k["classification_code"] == secili.classification_code
+                and k["packing_group"] == secili.packing_group
+                for k in kalemler)
             if zaten_var:
-                st.warning(f"UN{secili.un_number} zaten listede.")
+                st.warning(f"UN{secili.un_number} (bu sınıflandırma/PG ile) zaten listede.")
             else:
                 kalemler.append({
                     "un_number": secili.un_number,
@@ -55,10 +59,12 @@ st.subheader("Kontrol Edilecek Maddeler")
 
 if kalemler:
     for i, k in enumerate(kalemler):
-        c1, c2, c3, c4, c5 = st.columns([1, 3, 1, 1.5, 0.6])
+        c1, c2, c3, c4, c5 = st.columns([1, 3, 1.3, 1.5, 0.6])
         c1.write(f"UN{k['un_number']}")
         c2.write(k["proper_name"])
-        c3.write(k["class_code"] or "—")
+        c3.write(" / ".join(filter(None, [
+            k["class_code"], k["classification_code"],
+            f"PG{k['packing_group']}" if k["packing_group"] else ""])) or "—")
         c4.write(f"Tünel: {k['tunnel_code'] or '—'}")
         if c5.button("🗑️", key=f"mix_sil_{i}"):
             kalemler.pop(i)

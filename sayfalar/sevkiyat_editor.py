@@ -11,7 +11,7 @@ Akış:
 """
 import streamlit as st
 
-from sayfalar._ortak import db
+from sayfalar._ortak import db, kimyasal_etiket
 from webcore.models import Shipment, ShipmentItem, DocumentStatus
 from webcore.engines import ADREngine
 from webcore.errors import turkce_hata_metni
@@ -137,7 +137,7 @@ with st.expander("➕ Kalem ekle", expanded=not kalemler):
     if bulunanlar:
         secili = st.selectbox(
             "Bulunan maddeler", bulunanlar,
-            format_func=lambda c: f"UN{c.un_number} — {c.proper_shipping_name_tr or c.proper_shipping_name_en}")
+            format_func=kimyasal_etiket)
         ic1, ic2, ic3 = st.columns(3)
         paket_turu = ic1.selectbox("Ambalaj türü", PAKET_TURLERI, key="yeni_paket_turu")
         paket_adet = ic2.number_input("Ambalaj adeti", min_value=0, step=1, key="yeni_paket_adet")
@@ -171,7 +171,7 @@ if kalemler:
         c1, c2, c3, c4, c5 = st.columns([1, 3, 1.2, 2, 0.6])
         c1.write(f"UN{k['un_number']}")
         c2.write(k["proper_name"])
-        c3.write(k["class_code"])
+        c3.write(f"{k['class_code']}{' PG' + k['packing_group'] if k['packing_group'] else ''}")
         c4.write(f"{k['packaging_type']} · {k['packaging_count']} adet · "
                  f"{k['net_quantity']} {k['unit']}"
                  + (" · LQ" if k["is_lq"] else "") + (" · EQ" if k["is_eq"] else ""))
