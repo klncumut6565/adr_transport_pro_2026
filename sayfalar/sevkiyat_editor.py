@@ -129,9 +129,9 @@ sev["vehicle_id"] = c8.selectbox("Araç", list(arac_secenekleri),
 sev["notes"] = st.text_area("Notlar", value=sev["notes"])
 
 st.divider()
-st.subheader("Kimyasal Kalemleri")
+st.subheader("Kimyasal Ürünleri")
 
-with st.expander("➕ Kalem ekle", expanded=not kalemler):
+with st.expander("➕ Ürün ekle", expanded=not kalemler):
     arama = st.text_input("UN numarası veya madde adı ile ara")
     bulunanlar = db().search_chemicals(arama, limit=15) if arama else []
     if bulunanlar:
@@ -146,7 +146,7 @@ with st.expander("➕ Kalem ekle", expanded=not kalemler):
         birim = ic4.selectbox("Birim", ["kg", "lt", "adet"], key="yeni_birim")
         is_lq = ic5.checkbox("LQ (Sınırlı Miktar)", key="yeni_lq")
         is_eq = ic6.checkbox("EQ (İstisnai Miktar)", key="yeni_eq")
-        if st.button("Kalemi ekle", type="primary"):
+        if st.button("Ürünü ekle", type="primary"):
             kalemler.append({
                 "id": None, "shipment_id": sev["id"],
                 "chemical_id": secili.id, "un_number": secili.un_number,
@@ -180,7 +180,7 @@ if kalemler:
             st.session_state["editor_kalemler"] = kalemler
             st.rerun()
 else:
-    st.info("Henüz kalem eklenmedi.")
+    st.info("Henüz ürün eklenmedi.")
 
 st.divider()
 st.subheader("Doğrulama ve Kayıt")
@@ -223,7 +223,7 @@ if bc2.button("💾 Kaydet", type="primary", use_container_width=True):
     if not sev["document_no"].strip():
         st.error("Belge No zorunlu (veritabanında benzersiz olmalı).")
     elif not kalemler:
-        st.error("En az bir kimyasal kalemi eklemeden kaydedilemez.")
+        st.error("En az bir kimyasal ürünü eklemeden kaydedilemez.")
     else:
         # Kayıt anında motor sonuçları da hesaplanıp sevkiyata yazılır
         # (monolit davranışı: liste ekranındaki Puan/Plaka/Tünel kolonları

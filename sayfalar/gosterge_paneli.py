@@ -34,4 +34,4 @@ with sag:
     if enler:
         st.dataframe(enler, use_container_width=True, hide_index=True)
     else:
-        st.info("Henüz sevkiyat kalemi yok.")
+        st.info("Henüz sevkiyat ürünü yok.")

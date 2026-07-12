@@ -97,7 +97,7 @@ if xlsx is not None and st.button("🚀 İçe aktarmayı başlat", type="primary
 
 with st.expander("⚠️ Tehlikeli bölge: kimyasal tablosunu boşalt"):
     st.warning("Bu işlem bu kiracıya ait TÜM kimyasal kayıtlarını siler. "
-               "Sevkiyat kalemleri etkilenmez (kopya alanlar kalemde saklıdır).")
+               "Sevkiyat ürünleri etkilenmez (kopya alanlar üründe saklıdır).")
     onay = st.text_input("Onay için 'SİL' yazın")
     if st.button("Kimyasal tablosunu boşalt", disabled=(onay != "SİL")):
         d.execute_update("DELETE FROM chemicals")

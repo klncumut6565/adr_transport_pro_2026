@@ -1,9 +1,9 @@
 """Güvenlik (Emniyet) Planı — masaüstündeki SafetyPlansPage'in web karşılığı
 (ADR 1.10.3). Faz 2b.
 
-Kayıtlı bir sevkiyat seçilir; kalemleri SecurityPlanEngine ile
+Kayıtlı bir sevkiyat seçilir; ürünleri SecurityPlanEngine ile
 değerlendirilerek emniyet planı gerekip gerekmediği, gerekçeleri ve
-kalem bazlı detaylar gösterilir.
+ürün bazlı detaylar gösterilir.
 """
 import streamlit as st
 
@@ -13,7 +13,7 @@ from webcore.errors import turkce_hata_metni
 from webcore.models import ShipmentItem
 
 st.title("🛡 Güvenlik Planı — ADR 1.10.3")
-st.caption("Seçilen sevkiyatın kalemlerini ADR Madde 1.10.3 (Tablo 1.10.3.1.2 / "
+st.caption("Seçilen sevkiyatın ürünlerini ADR Madde 1.10.3 (Tablo 1.10.3.1.2 / "
            "1.10.3.1.3) hükümlerine göre değerlendirir.")
 
 d = db()
@@ -35,18 +35,18 @@ TRANSPORT_MODES = {"ambalaj": "Ambalaj", "tank": "Tank (litre)", "dokme": "Dökm
 secili_mod = st.selectbox(
     "Sınıf 7 (radyoaktif) modu", list(TRANSPORT_MODES),
     format_func=lambda k: TRANSPORT_MODES[k],
-    help="Yalnızca Sınıf 7 kalemler için geçerlidir. Diğer tüm kalemlerin "
+    help="Yalnızca Sınıf 7 ürünler için geçerlidir. Diğer tüm ürünlerin "
          "taşıma modu kendi ambalaj türünden (Tank/Dökme/Ambalaj) otomatik belirlenir.")
 
 kalem_dictler = d.get_shipment_items(secili_id)
 items = [ShipmentItem(**dict(vars(k))) for k in kalem_dictler]
 
 if not items:
-    st.warning("Bu sevkiyatta henüz kimyasal kalemi yok — değerlendirme yapılamaz.")
+    st.warning("Bu sevkiyatta henüz kimyasal ürünü yok — değerlendirme yapılamaz.")
     st.stop()
 
 st.divider()
-st.subheader("Sevkiyat Kalemleri")
+st.subheader("Sevkiyat Ürünleri")
 for k in items:
     st.write(f"• UN{k.un_number} — {k.proper_name} "
              f"(Sınıf {k.class_code or '—'}, PG{k.packing_group or '—'}, "
@@ -81,7 +81,7 @@ if "gp_sonuc" in st.session_state:
         st.caption(f"Sınıf 7 radyoaktif eşik oranı (∑Ai/Ti): {sonuc['class7_ratio']:.3f}")
 
     if sonuc["details"]:
-        with st.expander("Kalem bazlı değerlendirme detayı", expanded=False):
+        with st.expander("Ürün bazlı değerlendirme detayı", expanded=False):
             for det in sonuc["details"]:
                 st.text(det)
 

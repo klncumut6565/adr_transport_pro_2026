@@ -39,7 +39,7 @@ with sol:
         st.dataframe(kirilim, use_container_width=True, hide_index=True)
         st.bar_chart({r["class_code"] or "—": r["toplam_net_kg"] for r in kirilim})
     else:
-        st.info("Seçilen dönemde sevkiyat kalemi yok.")
+        st.info("Seçilen dönemde sevkiyat ürünü yok.")
 with sag:
     st.subheader("Son 6 Ay Sevkiyat Dağılımı")
     if aylik:
