@@ -1156,6 +1156,26 @@ class DatabaseManager:
         wb = load_workbook(xlsx_path, read_only=True, data_only=True)
         ws = wb.worksheets[0]
 
+        # İDEMPOTENSLİK (66-satır düzeltmesinin tamamlayıcısı): eski UNIQUE
+        # kısıtı yanlış anahtar yüzünden 66 geçerli satırı yutuyordu ama yan
+        # etki olarak yeniden-içe-aktarmayı da tekilleştiriyordu. Kısıt
+        # kalktığı için tekilleştirme artık TAM SATIR İMZASI ile yapılır:
+        # 640C/640D gibi yalnız özel hükümle ayrışan varyantlar ayrı imza
+        # üretir (korunur), birebir aynı satırın ikinci kez eklenmesi ise
+        # atlanır. Böylece Tablo A'yı tekrar yüklemek güvenlidir.
+        mevcut_imzalar = {
+            (r["un_number"], r["classification_code"], r["class_code"],
+             r["packing_group"], r["special_provisions"],
+             r["limited_quantity"], r["excepted_quantity"],
+             r["tunnel_code"], r["transport_category"],
+             r["proper_shipping_name_tr"])
+            for r in self.execute(
+                """SELECT un_number, classification_code, class_code,
+                          packing_group, special_provisions, limited_quantity,
+                          excepted_quantity, tunnel_code, transport_category,
+                          proper_shipping_name_tr FROM chemicals""")
+        }
+
         imported = 0
         for row in ws.iter_rows(min_row=5, values_only=True):
             un = self._xl_un(row[0] if len(row) > 0 else None)
@@ -1188,6 +1208,14 @@ class DatabaseManager:
                 eq_allowed=_adr_engine().eq_limits(eq_code)[0] > 0,
                 hazard_labels=self._xl_clean(row[5] if len(row) > 5 else None),
             )
+            imza = (c.un_number, c.classification_code, c.class_code,
+                    c.packing_group, c.special_provisions,
+                    c.limited_quantity, c.excepted_quantity,
+                    c.tunnel_code, c.transport_category,
+                    c.proper_shipping_name_tr)
+            if imza in mevcut_imzalar:
+                continue
+            mevcut_imzalar.add(imza)
             self.add_chemical(c)
             imported += 1
         return imported
