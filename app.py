@@ -38,6 +38,17 @@ def _login_page():
     st.title("🚚 ADR Transport Pro 2026")
     st.caption("Tehlikeli madde taşımacılığı yönetim sistemi")
 
+    # Hafif veritabanı dokunuşu: giriş ekranının HER yüklenişi (keep-alive
+    # ping'i dahil) Supabase'e SELECT 1 düşürür; böylece tek GitHub Actions
+    # ping'i hem Streamlit uykusunu hem Supabase'in 7 gün duraklatma
+    # sayacını birlikte sıfırlar. Veritabanı geçici olarak erişilemezse
+    # giriş formu yine de gösterilir.
+    try:
+        _db().execute_one("SELECT 1 AS ping")
+    except Exception:
+        st.warning("Veritabanına şu an ulaşılamıyor; giriş geçici olarak "
+                   "başarısız olabilir.")
+
     with st.form("giris"):
         username = st.text_input("Kullanıcı adı")
         password = st.text_input("Parola", type="password")
