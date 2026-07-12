@@ -76,7 +76,6 @@ CREATE TABLE IF NOT EXISTS chemicals (
                 limited_quantity TEXT DEFAULT '',
                 excepted_quantity TEXT DEFAULT '',
                 hazard_labels TEXT,
-                UNIQUE(un_number, classification_code, packing_group),
                 tenant_id BIGINT NOT NULL DEFAULT 1
             );
 

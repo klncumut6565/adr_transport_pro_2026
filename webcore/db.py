@@ -138,8 +138,7 @@ class DatabaseManager:
                 eq_allowed INTEGER DEFAULT 0,
                 limited_quantity TEXT DEFAULT '',
                 excepted_quantity TEXT DEFAULT '',
-                hazard_labels TEXT,
-                UNIQUE(un_number, classification_code, packing_group)
+                hazard_labels TEXT
             )
         """)
 
@@ -227,12 +226,21 @@ class DatabaseManager:
                 cursor.execute(
                     f"ALTER TABLE chemicals ADD COLUMN {col} TEXT DEFAULT ''")
 
-        # Eski semada UNIQUE(un_number) varsa tabloyu yeniden insa et:
-        # UN1950 gibi 12 varyantli maddeler icin bilesik anahtar sarttir.
+        # Eski semalarda chemicals uzerinde hatali UNIQUE kisitlari vardi:
+        # once sadece un_number (UN1950 gibi 12 varyantli maddeleri kirardi),
+        # sonra un_number+classification_code+packing_group (bu da yanlis --
+        # resmi ADR Tablo A'da bu UCLU AYNI olup yalnizca ozel hukum (6. sutun)
+        # ile ayrilan gercekten farkli satirlar var, ornegin UN1133 F1 PG II
+        # 640C ve 640D varyantlari; bu kisit boyle satirlari sessizce
+        # birbirinin uzerine yaziyordu: 2939 gecerli satirdan yalnizca 2873'u
+        # kaliyordu, 66 satir kayboluyordu). Artik chemicals uzerinde is
+        # mantigi acisindan hicbir UNIQUE kisit yok; her Tablo A satiri kendi
+        # kaydi olarak saklanir.
         table_sql = cursor.execute(
             "SELECT sql FROM sqlite_master WHERE type='table' AND name='chemicals'"
         ).fetchone()
-        if table_sql and "un_number TEXT NOT NULL UNIQUE" in (table_sql[0] or ""):
+        _sql = (table_sql[0] or "") if table_sql else ""
+        if "un_number TEXT NOT NULL UNIQUE" in _sql or "UNIQUE(un_number" in _sql:
             cursor.execute("ALTER TABLE chemicals RENAME TO chemicals_eski")
             cursor.execute("""
                 CREATE TABLE chemicals (
@@ -251,12 +259,11 @@ class DatabaseManager:
                     eq_allowed INTEGER DEFAULT 0,
                     limited_quantity TEXT DEFAULT '',
                     excepted_quantity TEXT DEFAULT '',
-                    hazard_labels TEXT,
-                    UNIQUE(un_number, classification_code, packing_group)
+                    hazard_labels TEXT
                 )
             """)
             cursor.execute("""
-                INSERT OR IGNORE INTO chemicals
+                INSERT INTO chemicals
                     (id, un_number, classification_code, proper_shipping_name_tr,
                      proper_shipping_name_en, class_code, packing_group, tunnel_code,
                      transport_category, segregation_group, special_provisions,
@@ -624,7 +631,12 @@ class DatabaseManager:
 
     def _upsert_chemical(self, c: Chemical) -> bool:
         """True=yeni eklendi, False=mevcut guncellendi.
-        Birincil anahtar: UN + siniflandirma_kodu + paketleme_grubu."""
+        Sadece firma envanteri ice aktarmada kullanilir (import_company_inventory_excel);
+        bir firmanin kendi envanterinde ayni UN+siniflandirma+PG genelde tek
+        gercek urunu temsil eder. UYARI: resmi ADR Tablo A icin bu anahtar
+        GECERLI DEGIL (import_table_a_excel artik bunu kullanmiyor) -- Tablo
+        A'da bu uclu ayni olup yalnizca ozel hukumle ayrisan gercek satirlar
+        var, bkz. import_table_a_excel docstring'i."""
         existing = self.execute_one(
             """SELECT id FROM chemicals
                WHERE un_number=? AND classification_code=? AND packing_group=?""",
@@ -1129,8 +1141,17 @@ class DatabaseManager:
 
     def import_table_a_excel(self, xlsx_path: str) -> int:
         """Resmi ADR Tablo A Excel'ini (cok satirli baslik, sutun 7a/7b
-        dahil) uygulamanin kimyasal veritabanina aktarir. Var olan UN
-        kayitlari guncellenir; LQ/EQ, kategori ve tunel Tablo A'dan gelir."""
+        dahil) uygulamanin kimyasal veritabanina aktarir.
+
+        ONEMLI: Her satir kendi kaydi olarak eklenir, birlestirme YAPILMAZ.
+        Resmi Tablo A'da (UN, siniflandirma kodu, paketleme grubu) uclusu
+        AYNI olup yalnizca ozel hukum (6. sutun) ile ayrilan gercekten farkli
+        satirlar var (orn. UN1133 F1 PG II: 640C ve 640D varyantlari). Bu
+        uclu daha once yanlislikla "birincil anahtar" sayilip byle satirlar
+        birbirinin uzerine yaziliyordu (2939 gecerli satirdan 66'si kayboluyor,
+        2873 kaliyordu). Tekrar calistirma idempotent DEGILDIR; temiz yukleme
+        icin once kimyasal tablosunu bosaltin (Ayarlar sayfasinda uyari var).
+        """
         from openpyxl import load_workbook
         wb = load_workbook(xlsx_path, read_only=True, data_only=True)
         ws = wb.worksheets[0]
@@ -1167,8 +1188,8 @@ class DatabaseManager:
                 eq_allowed=_adr_engine().eq_limits(eq_code)[0] > 0,
                 hazard_labels=self._xl_clean(row[5] if len(row) > 5 else None),
             )
-            if self._upsert_chemical(c):
-                imported += 1
+            self.add_chemical(c)
+            imported += 1
         return imported
 
     def import_company_inventory_excel(self, xlsx_path: str) -> int:

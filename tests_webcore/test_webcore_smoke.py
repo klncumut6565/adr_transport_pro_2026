@@ -315,7 +315,11 @@ class TestTableAImport:
         db = PgDatabaseManager(PG_DSN)
         db.execute_update("DELETE FROM chemicals")
         n = db.import_table_a_excel("ADR_A_TABLOSU.xlsx")
-        assert n == 2873 and db.count_chemicals() == 2873
+        # Onceden 2873 idi (yanlis UNIQUE kisiti 66 gecerli satiri sessizce
+        # birbirinin uzerine yaziyordu -- bkz. webcore/db.py
+        # import_table_a_excel docstring'i). Duzeltme sonrasi tum 2939
+        # gecerli satir korunuyor.
+        assert n == 2939 and db.count_chemicals() == 2939
         r = db.search_chemicals("1203")[0]
         assert r.class_code == "3" and r.tunnel_code == "D/E"
         db.execute_update("DELETE FROM chemicals")

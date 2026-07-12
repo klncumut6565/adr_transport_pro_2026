@@ -101,3 +101,19 @@ Uyku sorunu: GitHub Actions keep-alive (Faz 5'te .github/workflows/keepalive.yml
   düşer, Faz 3'te WeasyPrint hook'u verilecek.
 - 285-493 aralığındaki lisans yardımcıları (makine parmak izi, PBKDF2) webcore'a
   ALINMADI; web kimlik doğrulaması Faz 1'de ayrı kurulacak.
+- DÜZELTME (Faz 4 sırasında, Umut'un tespiti): chemicals tablosundaki
+  UNIQUE(un_number, classification_code, packing_group) kısıtı yanlıştı.
+  Resmi ADR Tablo A'da bu üçlü AYNI olup yalnızca özel hüküm (6. sütun) ile
+  ayrışan gerçekten farklı satırlar var (örn. UN1133 F1 PG II: 640C/640D
+  varyantları — 48 böyle üçlü, 66 fazladan satır). import_table_a_excel bu
+  kısıtı "birincil anahtar" sayıp böyle satırları birbirinin üzerine
+  yazıyordu: 2939 geçerli satırdan yalnızca 2873'ü kalıyordu. Kısıt
+  kaldırıldı, import artık her satırı kendi kaydı olarak ekliyor (2939→2939,
+  UN1133 doğrulandı: 6 varyant, 640C ve 640D ayrı ayrı görünüyor). Sonuç:
+  import artık idempotent DEĞİL (tekrar çalıştırma satırları çoğaltır) —
+  Ayarlar sayfasındaki "temiz yükleme için önce boşalt" uyarısı zaten bunu
+  varsayıyordu. Canlı Supabase için tek seferlik migrasyon:
+  migration_chemicals_unique_kaldir.sql. Not: _upsert_chemical (firma
+  envanteri birleştirmesi için) aynı üçlüyü hâlâ kullanıyor — bu, küçük
+  firma envanterleri için makul bir sezgisel yöntem, ama resmi Tablo A için
+  GEÇERSİZ olduğu artık docstring'de açıkça belirtiliyor.
