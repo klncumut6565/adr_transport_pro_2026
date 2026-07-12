@@ -106,7 +106,17 @@ Uyku sorunu: GitHub Actions keep-alive (Faz 5'te .github/workflows/keepalive.yml
       reaktif bir sevkiyat editörü — bu iş bittiğinde Faz 4'ün güvenlik
       ağı sayesinde motor tarafında regresyon riski olmadan yapılmış olacak.
 - [ ] Faz 5 — Streamlit Cloud dağıtım + secrets + keep-alive workflow
-- [ ] Faz 6 — Masaüstü adr_database.db → PostgreSQL veri migrasyonu
+- [x] Faz 6 — Veri migrasyonu + yedek: `araclar/migrate_desktop_to_pg.py`
+      (ID'ler ve ilişkiler korunur, kolon kesişimiyle şema-toleranslı,
+      tenant_id atanır, IDENTITY sayaçları setval ile sarılır, --temizle /
+      ON CONFLICT id ile idempotent, yerleşik sayı+ilişki doğrulaması;
+      prova: 2939 kimyasal + 5 sevkiyat + ilişkiler + sayaç kanıtı) ve
+      `araclar/yedek_al.py` (tüm tablolar zaman damgalı CSV zip; ücretsiz
+      planda otomatik yedek olmamasına karşı felaket-kurtarma kopyası,
+      pg_dump alternatifi notuyla). İkisi de suite'te uçtan uca testli.
+      KULLANIM: gerçek geçiş günü tek komut —
+      python araclar/migrate_desktop_to_pg.py --sqlite adr_database.db
+        --dsn "SUPABASE_POOLER_DSN" --tenant 1 --temizle
 
 ## webcore/ notları
 - SecurityPlanEngine.generate_inventory_review_html içindeki antet filigranı

@@ -345,3 +345,54 @@ class TestEnvanterImport:
         assert kayit == n
         db.execute_update("DELETE FROM company_products")
         db.close()
+
+
+class TestFaz6MigrasyonVeYedek:
+    """Faz 6: masaüstü->Pg migrasyonu ve CSV zip yedeği (uçtan uca)."""
+
+    def test_migration_roundtrip_and_sequence(self, tmp_path):
+        if not PG_DSN:
+            pytest.skip("ADR_PG_TEST_DSN tanımlı değil")
+        import sys
+        sys.path.insert(0, ".")
+        from araclar.migrate_desktop_to_pg import tasi, _dogrula
+        from webcore import (DatabaseManager, Company, Driver, Vehicle,
+                             Shipment)
+
+        F = lambda cls, **o: cls(**{k: v for k, v in o.items()
+                                    if k in cls.__dataclass_fields__})
+        kaynak = str(tmp_path / "masaustu.db")
+        db = DatabaseManager(kaynak)
+        s = db.add_company(F(Company, type="sender", name="MİG GÖNDEREN"))
+        d = db.add_driver(F(Driver, full_name="Mig Sürücü", tc_no="99999999990"))
+        v = db.add_vehicle(F(Vehicle, plate="06 MIG 06"))
+        db.add_shipment(F(Shipment, document_no="MIG-1",
+                          document_date="2026-01-01", status="Taslak",
+                          sender_id=s, driver_id=d, vehicle_id=v))
+        db.set_setting("mig_test", "1")
+        db.close()
+
+        ozet = tasi(kaynak, PG_DSN, tenant=1, temizle=True,
+                    log=lambda *a: None)
+        assert ozet["companies"] == 1 and ozet["shipments"] == 1
+        assert _dogrula(kaynak, PG_DSN, 1, log=lambda *a: None)
+
+        # sayaç sarımı: taşıma sonrası yeni kayıt çakışmamalı
+        from webcore.pg import PgDatabaseManager
+        h = PgDatabaseManager(PG_DSN)
+        yeni = h.add_company(F(Company, type="sender", name="MIG SONRASI"))
+        assert yeni > s
+        h.execute_update("DELETE FROM companies")
+        h.execute_update("DELETE FROM shipments")
+        h.close()
+
+    def test_backup_zip(self, tmp_path):
+        if not PG_DSN:
+            pytest.skip("ADR_PG_TEST_DSN tanımlı değil")
+        import sys, zipfile
+        sys.path.insert(0, ".")
+        from araclar.yedek_al import yedekle
+        z = yedekle(PG_DSN, str(tmp_path), log=lambda *a: None)
+        zf = zipfile.ZipFile(z)
+        adlar = zf.namelist()
+        assert "chemicals.csv" in adlar and "YEDEK_BILGI.txt" in adlar
