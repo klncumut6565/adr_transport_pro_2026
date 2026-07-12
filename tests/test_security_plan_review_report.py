@@ -254,43 +254,10 @@ class TestReportGeneration:
 # =========================================================================
 @needs_real_excel
 class TestRealAsutekInventory:
-    def _load_chemicals(self, db):
-        rows = db.execute(
-            "SELECT DISTINCT un_number, classification_code, packing_group "
-            "FROM company_products")
-        result = []
-        for r in rows:
-            row = db.execute_one(
-                "SELECT * FROM chemicals WHERE un_number=? AND "
-                "classification_code=? AND packing_group=?",
-                (r["un_number"], r["classification_code"] or "",
-                 r["packing_group"] or ""))
-            if row:
-                result.append(db._row_to_chemical(row))
-        return result
-
-    def test_full_pipeline_no_crash(self, tmp_path):
-        db = M.DatabaseManager(str(tmp_path / "t.db"))
-        db.import_table_a_excel(str(TABLE_A))
-        db.import_company_inventory_excel(str(ASUTEK))
-        chemicals = self._load_chemicals(db)
-        assert len(chemicals) == 36
-
-        result = M.SecurityPlanEngine.screen_inventory(chemicals)
-        assert result["total"] == 36
-        # Tüm sonuçlar dolu UN numarasına sahip olmalı (BUG-3 regresyonu)
-        assert all(r["un_number"] for r in result["results"])
-
-    def test_pg1_item_un2054_exempt_per_class8_rule(self, tmp_path):
-        """UN2054 (MORFOLİN, Sınıf 8 (+3), PG I) gerçek envanterde var;
-        Class 8 PG I paket kuralı 'b' (muaf) olduğundan exempt olmalı."""
-        db = M.DatabaseManager(str(tmp_path / "t.db"))
-        db.import_table_a_excel(str(TABLE_A))
-        db.import_company_inventory_excel(str(ASUTEK))
-        chemicals = self._load_chemicals(db)
-        result = M.SecurityPlanEngine.screen_inventory(chemicals)
-        un2054 = next(r for r in result["results"] if r["un_number"] == "2054")
-        assert un2054["in_scope"] is False
+    """NOT: Bu sınıfın saf motor testleri (test_full_pipeline_no_crash,
+    test_pg1_item_un2054_exempt_per_class8_rule) webcore'a taşındı —
+    bkz. tests_webcore/test_security_plan_review.py::TestRealAsutekInventoryScreening.
+    Burada yalnız Qt pencere/sayfa akışına bağlı testler kalıyor."""
 
     def test_ui_scan_button_populates_table(self, tmp_path, monkeypatch):
         orig_init = M.DatabaseManager.__init__

@@ -238,9 +238,63 @@ class TestReportGeneration:
         assert len(blob) > 3000
 
 
+class TestRealAsutekInventoryScreening:
+    """Faz 4 tamamlama: TestRealAsutekInventory'nin masaüstünde bırakılan
+    4 testinden yalnız 2'si gerçekten Qt'ye bağlıydı
+    (test_ui_scan_button_populates_table, test_ui_pdf_export_end_to_end —
+    ADRTransportPro penceresi + widget'lara dokunuyorlar, tests/ altında
+    kalmaya devam ederler). Aşağıdaki iki test ise saf motor/veritabanı
+    testidir (Qt yok) ve buraya taşındı; ONCEKİ not (bu ikisinin
+    test_webcore_smoke.py::TestEnvanterImport ile karşılandığı) yanlıştı —
+    o test yalnızca import'un satır eklediğini doğruluyor,
+    SecurityPlanEngine.screen_inventory pipeline'ını hiç çalıştırmıyordu."""
+
+    def _load_chemicals(self, db):
+        rows = db.execute(
+            "SELECT DISTINCT un_number, classification_code, packing_group "
+            "FROM company_products")
+        result = []
+        for r in rows:
+            row = db.execute_one(
+                "SELECT * FROM chemicals WHERE un_number=? AND "
+                "classification_code=? AND packing_group=?",
+                (r["un_number"], r["classification_code"] or "",
+                 r["packing_group"] or ""))
+            if row:
+                result.append(db._row_to_chemical(row))
+        return result
+
+    @needs_real_excel
+    def test_full_pipeline_no_crash(self, tmp_path):
+        db = M.DatabaseManager(str(tmp_path / "t.db"))
+        db.import_table_a_excel(str(TABLE_A))
+        db.import_company_inventory_excel(str(ASUTEK))
+        chemicals = self._load_chemicals(db)
+        assert len(chemicals) == 36
+
+        result = M.SecurityPlanEngine.screen_inventory(chemicals)
+        assert result["total"] == 36
+        # Tüm sonuçlar dolu UN numarasına sahip olmalı (BUG-3 regresyonu)
+        assert all(r["un_number"] for r in result["results"])
+
+    @needs_real_excel
+    def test_pg1_item_un2054_exempt_per_class8_rule(self, tmp_path):
+        """UN2054 (MORFOLİN, Sınıf 8 (+3), PG I) gerçek envanterde var;
+        Class 8 PG I paket kuralı 'b' (muaf) olduğundan exempt olmalı."""
+        db = M.DatabaseManager(str(tmp_path / "t.db"))
+        db.import_table_a_excel(str(TABLE_A))
+        db.import_company_inventory_excel(str(ASUTEK))
+        chemicals = self._load_chemicals(db)
+        result = M.SecurityPlanEngine.screen_inventory(chemicals)
+        un2054 = next(r for r in result["results"] if r["un_number"] == "2054")
+        assert un2054["in_scope"] is False
+
+
 # =========================================================================
 # Gerçek ASUTEK verisiyle uçtan uca
 # =========================================================================
-# NOT: TestRealAsutekInventory (Qt pencere + sayfa akışı) masaüstünde
-# kaldı; web karşılığı tests_webcore/test_webcore_smoke.py
-# TestEnvanterImport + guvenlik_plani sayfa testleridir.
+# NOT: TestRealAsutekInventory'nin Qt'ye bağlı 2 testi (pencere + sayfa
+# akışı: test_ui_scan_button_populates_table, test_ui_pdf_export_end_to_end)
+# masaüstünde kaldı. Saf motor testleri (test_full_pipeline_no_crash,
+# test_pg1_item_un2054_exempt_per_class8_rule) yukarıda
+# TestRealAsutekInventoryScreening olarak taşındı.

@@ -80,19 +80,29 @@ Uyku sorunu: GitHub Actions keep-alive (Faz 5'te .github/workflows/keepalive.yml
       Türkçe karakter, %PDF imzası. KALAN (Faz 3c → Faz 2c ile):
       antet logosu yükleme (Ayarlar sayfası), doc_company_* ayar ekranı.
 - [x] Faz 4 — TEST TAŞIMA TAMAM (Umut 5 parça + son 4 dosya birlikte):
-      webcore suite 212 test. Taşınanlar: adr_mix_pro motoru, Türkçe hata
+      webcore suite 198 test. Taşınanlar: adr_mix_pro motoru, Türkçe hata
       motoru (webcore/errors.py), doğrulama katmanı, mevzuat hesap motoru,
       LQ/EQ, onay yaşam döngüsü (test_approval), gerçek Tablo A
       (test_real_excel), güvenlik planı motor+rapor (test_security_plan_review;
       QTextDocument PDF testi WeasyPrint'e çevrildi), statik filigran
       (test_letterhead). Masaüstünde kalanlar (Qt sayfa/pencere akışları):
       test_mixload, test_excel_export, letterhead Presence/VisualEffect,
-      TestRealAsutekInventory — tests/ altında çalışmaya devam ederler.
+      TestRealAsutekInventory'nin 2 Qt testi (test_ui_scan_button_populates_table,
+      test_ui_pdf_export_end_to_end) — tests/ altında çalışmaya devam ederler.
       Taşımanın yakaladığı gerçek regresyon: 66-satır düzeltmesi UNIQUE
       kısıtla birlikte yeniden-içe-aktarma tekilliğini de kaldırmıştı
       (2. yükleme 5878 kayıt yapardı); import_table_a_excel'e TAM SATIR
       İMZASI tabanlı idempotenslik eklendi (varyantlar korunur, kopya
       eklenmez) — test_idempotent yeniden yeşil.
+      DÜZELTME (Umut'un sorusu üzerine): TestRealAsutekInventory'nin ilk
+      taşımada TAMAMI "Qt'ye bağlı" sayılıp atlanmıştı, ama 4 testinden
+      yalnız 2'si gerçekten Qt'ye bağlıydı. Diğer 2'si
+      (test_full_pipeline_no_crash, test_pg1_item_un2054_exempt_per_class8_rule
+      — SecurityPlanEngine.screen_inventory'yi gerçek ASUTEK envanteriyle
+      uçtan uca çalıştırıyor, Qt yok) TestRealAsutekInventoryScreening
+      olarak webcore'a taşındı; bu ikisi masaüstünde de silinip yalnız
+      web tarafında kaldı (kod tekrarı olmasın diye). Faz 4 artık gerçekten
+      %100 tamam.
 - [ ] Faz 4.5 — "ADR Kontrol Merkezi" canlı panel + canlı evrak önizleme
       (Faz 4 biter bitmez, Faz 5'ten ÖNCE yapılacak — Umut'un önceliği).
       Masaüstü ShipmentEditorPage'in sağındaki sabit panel: 1.1.3.6 puan
