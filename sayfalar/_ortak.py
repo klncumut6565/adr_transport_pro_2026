@@ -1,10 +1,11 @@
 """Sayfaların ortak yardımcıları."""
 import streamlit as st
 
+from webcore.session import get_db
+
 
 def db():
-    from app import _db
-    return _db()
+    return get_db()
 
 
 def kullanici():

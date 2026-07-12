@@ -13,25 +13,13 @@ from __future__ import annotations
 
 import streamlit as st
 
-from webcore.pg import PgDatabaseManager
-from webcore.auth import AuthManager
+from webcore.session import get_db, get_auth
 
 st.set_page_config(
     page_title="ADR Transport Pro 2026",
     page_icon="🚚",
     layout="wide",
 )
-
-
-# ── veritabanı (kiracıdan bağımsız, oturum başına bir kez) ────────────
-@st.cache_resource
-def _db() -> PgDatabaseManager:
-    return PgDatabaseManager(st.secrets["db"]["dsn"])
-
-
-@st.cache_resource
-def _auth() -> AuthManager:
-    return AuthManager(_db())
 
 
 def _login_page():
@@ -44,7 +32,7 @@ def _login_page():
     # sayacını birlikte sıfırlar. Veritabanı geçici olarak erişilemezse
     # giriş formu yine de gösterilir.
     try:
-        _db().execute_one("SELECT 1 AS ping")
+        get_db().execute_one("SELECT 1 AS ping")
     except Exception:
         st.warning("Veritabanına şu an ulaşılamıyor; giriş geçici olarak "
                    "başarısız olabilir.")
@@ -55,13 +43,13 @@ def _login_page():
         ok = st.form_submit_button("Giriş", type="primary",
                                    use_container_width=True)
     if ok:
-        user = _auth().login(username, password)
+        user = get_auth().login(username, password)
         if user is None:
             st.error("Giriş başarısız. Bilgileri kontrol edin; art arda "
                      "hatalı denemelerde hesap 15 dakika kilitlenir.")
             return
         st.session_state["user"] = user
-        _db().set_tenant(user["tenant_id"])
+        get_db().set_tenant(user["tenant_id"])
         st.rerun()
 
 
@@ -77,7 +65,7 @@ def main():
         return
 
     # Oturum yeniden bağlanırsa kiracıyı tazele (Streamlit rerun'ları arası)
-    _db().set_tenant(user["tenant_id"])
+    get_db().set_tenant(user["tenant_id"])
 
     pages = [
         st.Page("sayfalar/gosterge_paneli.py",
@@ -86,6 +74,8 @@ def main():
                 title="Kimyasal Veritabanı", icon="🧪"),
         st.Page("sayfalar/sevkiyatlar.py",
                 title="Sevkiyatlar", icon="🚛"),
+        st.Page("sayfalar/sevkiyat_editor.py",
+                title="Sevkiyat Editörü", icon="📝", url_path="sevkiyat-editor"),
     ]
 
     with st.sidebar:
@@ -97,4 +87,5 @@ def main():
     st.navigation(pages).run()
 
 
-main()
+if __name__ == "__main__":
+    main()
