@@ -38,3 +38,24 @@ class TestGirisAkisi:
         # rerun sonrası gösterge paneli başlığı ve metrikler
         assert any("Gösterge Paneli" in str(t.value) for t in at.title)
         assert len(at.metric) >= 4
+
+
+class TestSevkiyatEditoruDogrudanGiris:
+    """Cloud'da görülen KeyError regresyonu: editöre menüden doğrudan
+    girişte editor_sevkiyat anahtarı oluşmadan okunuyordu. Sayfa,
+    navigasyon durumu OLMADAN (duzenlenecek_sevkiyat_id yok) tek başına
+    çalıştırılır — hatanın birebir yeniden üretimi."""
+
+    def test_direct_entry_no_keyerror(self):
+        if not PG_DSN:
+            pytest.skip("ADR_PG_TEST_DSN_APP tanımlı değil")
+        from streamlit.testing.v1 import AppTest
+        t = AppTest.from_file("sayfalar/sevkiyat_editor.py", default_timeout=30)
+        t.secrets["db"] = {"dsn": PG_DSN}
+        t.session_state["user"] = {"username": "umut", "tenant_id": 1,
+                                   "role": "admin", "full_name": "Umut"}
+        # bilinçli olarak duzenlenecek_sevkiyat_id / editor_* anahtarları YOK
+        t.run()
+        assert not t.exception, f"doğrudan girişte hata: {[str(e.value) for e in t.exception]}"
+        assert any("Sevkiyat Editörü" in str(x.value) for x in t.title)
+        assert t.session_state["editor_sevkiyat"]["id"] in (0, None)

@@ -60,9 +60,13 @@ def _yukle(shipment_id: int):
 
 
 def _durumu_baslat():
-    hedef_id = st.session_state.get("duzenlenecek_sevkiyat_id", "__ilk__")
-    yuklu_id = st.session_state.get("editor_yuklu_id", "__ilk__")
-    if hedef_id != yuklu_id:
+    # DÜZELTME (Cloud KeyError): menüden doğrudan girişte hedef ve yüklü
+    # nöbetçileri ikisi de "__ilk__" olup eşleşiyor, yükleme atlanıyor ve
+    # editor_sevkiyat hiç oluşmuyordu. Varsayılanlar ayrıştırıldı ve
+    # anahtar-yokluğu koruması eklendi.
+    hedef_id = st.session_state.get("duzenlenecek_sevkiyat_id")  # None => yeni
+    yuklu_id = st.session_state.get("editor_yuklu_id", "__hic_yuklenmedi__")
+    if hedef_id != yuklu_id or "editor_sevkiyat" not in st.session_state:
         if hedef_id:
             _yukle(hedef_id)
         else:
