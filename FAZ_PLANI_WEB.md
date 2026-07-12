@@ -57,8 +57,13 @@ Uyku sorunu: GitHub Actions keep-alive (Faz 5'te .github/workflows/keepalive.yml
       xlsx içe aktarma (Pg'de 2873 kayıt / 5 sn, SQLite ile parite testli)
       + onaylı tablo boşaltma. db.py yapıştırma düzeltmesi: içe aktarıcının
       ADREngine referansları geç-import'a bağlandı (döngü riski notuyla).
-      KALAN (Faz 2d): raporlar sayfası (aylık dağılım, sınıf kırılımı,
-      Excel/PDF çıktı) + firma envanteri (ASUTEK formatı) içe aktarma.
+      Faz 2d TAMAM: `sayfalar/raporlar.py` — dönem seçimli özet metrikler,
+      sınıf kırılımı (tablo+grafik), son 6 ay dağılımı, en çok gönderen/
+      kimyasal listeleri; çok sayfalı Excel ve PDF dışa aktarma (WeasyPrint).
+      Ayarlar'a firma envanteri içe aktarma eklendi (ASUTEK formatı,
+      'UN NUMARASI' başlığı otomatik bulunur, EQ Tablo A'dan tamamlanır;
+      gerçek dosyayla Pg'de testli). SAYFA TAŞIMA FAZI (2a-2d) KAPANDI:
+      12 masaüstü sayfasının web karşılıkları tamam.
 - [~] Faz 3a — PDF motoru: `webcore/pdf.py` → html_to_pdf_bytes (WeasyPrint,
       A4) + build_letterhead_watermark_b64 (monolitten satırı satırına, saf
       Pillow) + filigran HOOK'u: engines'e ShipmentEditorPage vekili enjekte

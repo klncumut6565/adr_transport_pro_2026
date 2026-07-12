@@ -320,3 +320,24 @@ class TestTableAImport:
         assert r.class_code == "3" and r.tunnel_code == "D/E"
         db.execute_update("DELETE FROM chemicals")
         db.close()
+
+
+class TestEnvanterImport:
+    """Faz 2d: ASUTEK formatı firma envanteri içe aktarma (gerçek dosya)."""
+
+    def test_company_inventory_import(self):
+        if not PG_DSN:
+            pytest.skip("ADR_PG_TEST_DSN tanımlı değil")
+        import os
+        yol = "ASUTEK_Kimyasal_İnceleme_Kimyasal_Envanter__ADR_rev1.xlsx"
+        if not os.path.exists(yol):
+            pytest.skip("envanter dosyası yok")
+        from webcore.pg import PgDatabaseManager
+        db = PgDatabaseManager(PG_DSN)
+        db.execute_update("DELETE FROM company_products")
+        n = db.import_company_inventory_excel(yol)
+        assert n > 0
+        kayit = db.execute("SELECT COUNT(*) AS n FROM company_products")[0]["n"]
+        assert kayit == n
+        db.execute_update("DELETE FROM company_products")
+        db.close()

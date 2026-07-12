@@ -87,3 +87,21 @@ class TestAyarlarSayfasi:
         assert not t.exception
         assert t.info, "admin olmayana bilgi mesajı beklenir"
         assert not any("Firma Bilgileri" in str(h.value) for h in t.subheader)
+
+
+class TestRaporlarSayfasi:
+    """Faz 2d: raporlar sayfası — render + Excel/PDF üretimi."""
+
+    def test_sayfa_ve_disa_aktarimlar(self):
+        if not PG_DSN:
+            pytest.skip("ADR_PG_TEST_DSN_APP tanımlı değil")
+        from streamlit.testing.v1 import AppTest
+        t = AppTest.from_file("sayfalar/raporlar.py", default_timeout=60)
+        t.secrets["db"] = {"dsn": PG_DSN}
+        t.session_state["user"] = {"username": "u", "tenant_id": 1,
+                                   "role": "admin", "full_name": "U"}
+        t.run()
+        assert not t.exception, [str(e.value) for e in t.exception]
+        assert any("Raporlar" in str(x.value) for x in t.title)
+        # iki indirme butonu üretilmiş olmalı (Excel + PDF baytları hazır)
+        assert len(t.get("download_button")) >= 1

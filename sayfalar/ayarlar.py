@@ -102,3 +102,26 @@ with st.expander("⚠️ Tehlikeli bölge: kimyasal tablosunu boşalt"):
         d.execute_update("DELETE FROM chemicals")
         st.success("Tablo boşaltıldı.")
         st.rerun()
+
+
+st.divider()
+
+# ── Firma Envanteri içe aktarma (ASUTEK vb. formatlar) ────────────────
+st.subheader("📥 Firma Kimyasal Envanteri İçe Aktarma")
+st.caption("Başlık satırı 'UN NUMARASI' hücresinden otomatik bulunur; "
+           "eksik EQ kodları Tablo A'dan tamamlanır.")
+env = st.file_uploader("Envanter Excel dosyasını seçin", type=["xlsx"],
+                       key="envanter")
+if env is not None and st.button("🚀 Envanteri içe aktar", type="primary",
+                                 key="envanter_btn"):
+    with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as f:
+        f.write(env.getvalue())
+        yol = f.name
+    try:
+        with st.spinner("Envanter içe aktarılıyor..."):
+            n = d.import_company_inventory_excel(yol)
+        st.success(f"{n} envanter kaydı içe aktarıldı.")
+    except Exception as exc:
+        st.error(f"İçe aktarma hatası: {exc}")
+    finally:
+        Path(yol).unlink(missing_ok=True)
