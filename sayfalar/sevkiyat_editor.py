@@ -162,20 +162,18 @@ with st.expander("➕ Kalem ekle", expanded=not kalemler):
         st.info("Eşleşen madde bulunamadı.")
 
 if kalemler:
-    st.dataframe(
-        [{"UN": k["un_number"], "Madde": k["proper_name"], "Sınıf": k["class_code"],
-          "Ambalaj": k["packaging_type"], "Adet": k["packaging_count"],
-          "Miktar": f"{k['net_quantity']} {k['unit']}",
-          "LQ": "✓" if k["is_lq"] else "", "EQ": "✓" if k["is_eq"] else ""}
-         for k in kalemler],
-        use_container_width=True, hide_index=True)
-    silinecek = st.selectbox(
-        "Silinecek kalem", range(len(kalemler)),
-        format_func=lambda i: f"{i+1}. UN{kalemler[i]['un_number']} — {kalemler[i]['proper_name']}")
-    if st.button("🗑️ Seçili kalemi sil"):
-        kalemler.pop(silinecek)
-        st.session_state["editor_kalemler"] = kalemler
-        st.rerun()
+    for i, k in enumerate(kalemler):
+        c1, c2, c3, c4, c5 = st.columns([1, 3, 1.2, 2, 0.6])
+        c1.write(f"UN{k['un_number']}")
+        c2.write(k["proper_name"])
+        c3.write(k["class_code"])
+        c4.write(f"{k['packaging_type']} · {k['packaging_count']} adet · "
+                 f"{k['net_quantity']} {k['unit']}"
+                 + (" · LQ" if k["is_lq"] else "") + (" · EQ" if k["is_eq"] else ""))
+        if c5.button("🗑️", key=f"kalem_sil_{i}"):
+            kalemler.pop(i)
+            st.session_state["editor_kalemler"] = kalemler
+            st.rerun()
 else:
     st.info("Henüz kalem eklenmedi.")
 
@@ -217,25 +215,38 @@ if bc1.button("🔍 Doğrula", use_container_width=True):
             st.code(detay)
 
 if bc2.button("💾 Kaydet", type="primary", use_container_width=True):
-    shipment = Shipment(
-        id=sev["id"], document_no=sev["document_no"], document_date=sev["document_date"],
-        status=sev["status"], sender_id=sev["sender_id"], receiver_id=sev["receiver_id"],
-        carrier_id=sev["carrier_id"], driver_id=sev["driver_id"], vehicle_id=sev["vehicle_id"],
-        exemption_type=sev["exemption_type"], notes=sev["notes"],
-    )
-    if shipment.id:
-        d.update_shipment(shipment)
-        yeni_id = shipment.id
-        d.delete_shipment_items(yeni_id)
+    if not sev["document_no"].strip():
+        st.error("Belge No zorunlu (veritabanında benzersiz olmalı).")
+    elif not kalemler:
+        st.error("En az bir kimyasal kalemi eklemeden kaydedilemez.")
     else:
-        yeni_id = d.add_shipment(shipment)
+        shipment = Shipment(
+            id=sev["id"], document_no=sev["document_no"], document_date=sev["document_date"],
+            status=sev["status"], sender_id=sev["sender_id"], receiver_id=sev["receiver_id"],
+            carrier_id=sev["carrier_id"], driver_id=sev["driver_id"], vehicle_id=sev["vehicle_id"],
+            exemption_type=sev["exemption_type"], notes=sev["notes"],
+        )
+        try:
+            if shipment.id:
+                d.update_shipment(shipment)
+                yeni_id = shipment.id
+                d.delete_shipment_items(yeni_id)
+            else:
+                yeni_id = d.add_shipment(shipment)
 
-    for k_dict in kalemler:
-        k_dict["shipment_id"] = yeni_id
-        k_dict.pop("id", None)
-        d.add_shipment_item(ShipmentItem(**k_dict))
+            for k_dict in kalemler:
+                k_dict["shipment_id"] = yeni_id
+                k_dict.pop("id", None)
+                d.add_shipment_item(ShipmentItem(**k_dict))
 
-    st.session_state["duzenlenecek_sevkiyat_id"] = yeni_id
-    st.session_state["editor_yuklu_id"] = "__ilk__"  # yeniden yüklemeye zorla
-    st.success(f"Sevkiyat kaydedildi (#{yeni_id}).")
+            st.session_state["duzenlenecek_sevkiyat_id"] = yeni_id
+            st.session_state["editor_yuklu_id"] = "__ilk__"  # yeniden yüklemeye zorla
+            st.success(f"Sevkiyat kaydedildi (#{yeni_id}).")
+            st.rerun()
+        except Exception as exc:
+            if "unique" in str(exc).lower() or "duplicate" in str(exc).lower():
+                st.error(f"Bu Belge No ('{sev['document_no']}') zaten kayıtlı. "
+                         "Lütfen farklı bir belge numarası girin.")
+            else:
+                st.error(f"Kaydetme sırasında hata oluştu: {exc}")
     st.rerun()
