@@ -254,6 +254,18 @@ class PgDatabaseManager(DatabaseManager):
         with conn.cursor() as cur:
             for name, sql in _sqlite_schema_sql():
                 cur.execute(_to_pg(name, sql))
+            # MİGRASYON (kendi kendini iyileştirir): eski kurulumlarda
+            # chemicals üzerinde UNIQUE(un_number, classification_code,
+            # packing_group) kısıtı vardı; CREATE TABLE IF NOT EXISTS mevcut
+            # tabloyu DEĞİŞTİRMEDİĞİ için canlı (Supabase) veritabanında
+            # kalıyordu ve Tablo A'nın yalnız özel hükümle ayrışan 66 satırını
+            # sessizce yutuyordu (UN1133 640C/640D örneği — bkz. webcore/db.py
+            # migrasyon notu). Uygulama her açılışta bu kısıtı arar ve düşürür.
+            cur.execute("""
+                SELECT conname FROM pg_constraint
+                WHERE conrelid = 'chemicals'::regclass AND contype = 'u'""")
+            for row in cur.fetchall():
+                cur.execute(f'ALTER TABLE chemicals DROP CONSTRAINT "{row["conname"]}"')
             for t in TENANT_TABLES:
                 cur.execute(f"CREATE INDEX IF NOT EXISTS idx_{t}_tenant "
                             f"ON {t}(tenant_id)")

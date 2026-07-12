@@ -117,3 +117,12 @@ Uyku sorunu: GitHub Actions keep-alive (Faz 5'te .github/workflows/keepalive.yml
   envanteri birleştirmesi için) aynı üçlüyü hâlâ kullanıyor — bu, küçük
   firma envanterleri için makul bir sezgisel yöntem, ama resmi Tablo A için
   GEÇERSİZ olduğu artık docstring'de açıkça belirtiliyor.
+
+## Denetim notu (Faz 4 sırasında, canlı ortam düzeltmesi)
+- Umut'un 66-satır düzeltmesi (UNIQUE kısıtının Tablo A'nın özel-hükümle
+  ayrışan satırlarını yutması) canlı Supabase'de kendiliğinden etkin OLMAZDI:
+  CREATE TABLE IF NOT EXISTS mevcut tabloyu değiştirmez, kısıt üretimde
+  kalıyordu. PgDatabaseManager.init_database'e kendi kendini iyileştiren
+  migrasyon eklendi: her açılışta chemicals üzerindeki UNIQUE kısıtları
+  pg_constraint'ten bulunup düşürülür. Kanıt: kısıt elle geri konup init
+  koşuldu -> kısıt yok, içe aktarma 2939 tam, UN1133 6 varyant.
