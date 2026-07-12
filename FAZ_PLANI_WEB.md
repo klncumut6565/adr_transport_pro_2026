@@ -80,6 +80,18 @@ Uyku sorunu: GitHub Actions keep-alive (Faz 5'te .github/workflows/keepalive.yml
       Türkçe karakter, %PDF imzası. KALAN (Faz 3c → Faz 2c ile):
       antet logosu yükleme (Ayarlar sayfası), doc_company_* ayar ekranı.
 - [ ] Faz 4 — 232 testin motor kısmının webcore'a uyarlanması
+- [ ] Faz 4.5 — "ADR Kontrol Merkezi" canlı panel + canlı evrak önizleme
+      (Faz 4 biter bitmez, Faz 5'ten ÖNCE yapılacak — Umut'un önceliği).
+      Masaüstü ShipmentEditorPage'in sağındaki sabit panel: 1.1.3.6 puan
+      sayacı, durum göstergeleri, sürücü sertifika durumu, uyarı/hata
+      listesi — TÜMÜ her alan değişiminde (firma/sürücü/araç seçimi,
+      kalem ekleme/silme) ANINDA güncellenir; ayrıca alttaki "Canlı Evrak
+      Önizleme" ile taşıma evrakı ekranda gerçek zamanlı biçimlendirilmiş
+      olarak görünür (şu anki web'deki tek seferlik "Doğrula" butonu ve
+      indir-öncesi-önizlemesiz "Taşıma Evrakı PDF" butonunun yerini alacak).
+      Hedef: masaüstü deneyimiyle mümkün olduğunca kusursuz eşleşen,
+      reaktif bir sevkiyat editörü — bu iş bittiğinde Faz 4'ün güvenlik
+      ağı sayesinde motor tarafında regresyon riski olmadan yapılmış olacak.
 - [ ] Faz 5 — Streamlit Cloud dağıtım + secrets + keep-alive workflow
 - [ ] Faz 6 — Masaüstü adr_database.db → PostgreSQL veri migrasyonu
 
