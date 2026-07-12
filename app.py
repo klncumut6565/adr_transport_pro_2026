@@ -76,6 +76,12 @@ def main():
                 title="Sevkiyatlar", icon="🚛"),
         st.Page("sayfalar/sevkiyat_editor.py",
                 title="Sevkiyat Editörü", icon="📝", url_path="sevkiyat-editor"),
+        st.Page("sayfalar/firmalar.py",
+                title="Firmalar", icon="🏢"),
+        st.Page("sayfalar/suruculer.py",
+                title="Sürücüler", icon="🧑‍✈️"),
+        st.Page("sayfalar/arac.py",
+                title="Araçlar", icon="🚚"),
     ]
 
     with st.sidebar:
