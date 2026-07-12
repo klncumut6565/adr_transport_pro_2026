@@ -19,10 +19,17 @@ def _bos_form_state():
 
 if "arac_duzenle_id" not in st.session_state:
     _bos_form_state()
+if "arac_form_ac" not in st.session_state:
+    st.session_state["arac_form_ac"] = False
 
-c1, c2 = st.columns([3, 1])
+c1, c2, c3 = st.columns([3, 1, 1])
 arama = c1.text_input("Ara (plaka)")
 sadece_aktif = c2.checkbox("Sadece aktif", value=True)
+if c3.button("➕ Yeni Araç", use_container_width=True):
+    _bos_form_state()
+    st.session_state["arac_form_ac"] = True
+    st.rerun()
+
 araclar = d.get_vehicles(search=arama or None, active_only=sadece_aktif)
 st.caption(f"{len(araclar)} araç")
 
@@ -43,6 +50,7 @@ if araclar:
             st.session_state["arac_tank_info"] = a.tank_info
             st.session_state["arac_vehicle_type"] = a.vehicle_type
             st.session_state["arac_max_capacity"] = a.max_capacity
+            st.session_state["arac_form_ac"] = True
             st.rerun()
         durum_etiketi = "Pasifleştir" if a.is_active else "Aktifleştir"
         if c5.button(durum_etiketi, key=f"arac_durum_{a.id}"):
@@ -51,6 +59,9 @@ if araclar:
             st.rerun()
 else:
     st.info("Kayıtlı araç yok.")
+
+if not st.session_state["arac_form_ac"]:
+    st.stop()
 
 st.divider()
 duzenlenen_id = st.session_state["arac_duzenle_id"]
@@ -95,9 +106,11 @@ if kaydet:
         else:
             d.add_vehicle(arac)
             st.success("Araç eklendi.")
+        st.session_state["arac_form_ac"] = False
         _bos_form_state()
         st.rerun()
 
 if iptal:
+    st.session_state["arac_form_ac"] = False
     _bos_form_state()
     st.rerun()

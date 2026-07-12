@@ -18,10 +18,17 @@ def _bos_form_state():
 
 if "surucu_duzenle_id" not in st.session_state:
     _bos_form_state()
+if "surucu_form_ac" not in st.session_state:
+    st.session_state["surucu_form_ac"] = False
 
-c1, c2 = st.columns([3, 1])
+c1, c2, c3 = st.columns([3, 1, 1])
 arama = c1.text_input("Ara (ad)")
 sadece_aktif = c2.checkbox("Sadece aktif", value=True)
+if c3.button("➕ Yeni Sürücü", use_container_width=True):
+    _bos_form_state()
+    st.session_state["surucu_form_ac"] = True
+    st.rerun()
+
 suruculer = d.get_drivers(search=arama or None, active_only=sadece_aktif)
 st.caption(f"{len(suruculer)} sürücü")
 
@@ -42,6 +49,7 @@ if suruculer:
             st.session_state["surucu_src5_expiry"] = s.src5_expiry
             st.session_state["surucu_license_class"] = s.license_class
             st.session_state["surucu_license_expiry"] = s.license_expiry
+            st.session_state["surucu_form_ac"] = True
             st.rerun()
         durum_etiketi = "Pasifleştir" if s.is_active else "Aktifleştir"
         if c5.button(durum_etiketi, key=f"surucu_durum_{s.id}"):
@@ -50,6 +58,9 @@ if suruculer:
             st.rerun()
 else:
     st.info("Kayıtlı sürücü yok.")
+
+if not st.session_state["surucu_form_ac"]:
+    st.stop()
 
 st.divider()
 duzenlenen_id = st.session_state["surucu_duzenle_id"]
@@ -94,9 +105,11 @@ if kaydet:
         else:
             d.add_driver(surucu)
             st.success("Sürücü eklendi.")
+        st.session_state["surucu_form_ac"] = False
         _bos_form_state()
         st.rerun()
 
 if iptal:
+    st.session_state["surucu_form_ac"] = False
     _bos_form_state()
     st.rerun()

@@ -20,8 +20,16 @@ def _bos_form_state():
 
 if "firma_duzenle_id" not in st.session_state:
     _bos_form_state()
+if "firma_form_ac" not in st.session_state:
+    st.session_state["firma_form_ac"] = False
 
-arama = st.text_input("Ara (isim)")
+arama_col, buton_col = st.columns([4, 1])
+arama = arama_col.text_input("Ara (isim)")
+if buton_col.button("➕ Yeni Firma", use_container_width=True):
+    _bos_form_state()
+    st.session_state["firma_form_ac"] = True
+    st.rerun()
+
 firmalar = d.get_companies(search=arama or None)
 st.caption(f"{len(firmalar)} firma")
 
@@ -44,9 +52,13 @@ if firmalar:
             st.session_state["firma_phone"] = f.phone
             st.session_state["firma_email"] = f.email
             st.session_state["firma_contact_person"] = f.contact_person
+            st.session_state["firma_form_ac"] = True
             st.rerun()
 else:
     st.info("Kayıtlı firma yok.")
+
+if not st.session_state["firma_form_ac"]:
+    st.stop()
 
 st.divider()
 duzenlenen_id = st.session_state["firma_duzenle_id"]
@@ -94,15 +106,18 @@ if kaydet:
         else:
             d.add_company(firma)
             st.success("Firma eklendi.")
+        st.session_state["firma_form_ac"] = False
         _bos_form_state()
         st.rerun()
 
 if iptal:
+    st.session_state["firma_form_ac"] = False
     _bos_form_state()
     st.rerun()
 
 if sil and duzenlenen_id:
     d.delete_company(duzenlenen_id)
     st.success("Firma silindi.")
+    st.session_state["firma_form_ac"] = False
     _bos_form_state()
     st.rerun()
