@@ -37,7 +37,15 @@ Uyku sorunu: GitHub Actions keep-alive (Faz 5'te .github/workflows/keepalive.yml
       (admin/user/viewer), 5 hatalı girişte 15 dk kilit, parola sıfırlama.
       Akış: login() → tenant_id → PgDatabaseManager.set_tenant() → RLS.
       KALAN (Faz 2 ile birlikte): Streamlit giriş sayfası bu modülü kullanacak.
-- [ ] Faz 2 — 12 sayfanın st.navigation ile taşınması
+- [~] Faz 2 — Streamlit iskeleti KURULDU: `app.py` (giriş sayfası →
+      AuthManager.login → set_tenant → st.navigation) + `sayfalar/`
+      (gosterge_paneli, kimyasal_veritabani, sevkiyatlar — liste görünümü).
+      Bağlantı dizesi .streamlit/secrets.toml → [db].dsn (repoya girmez;
+      Cloud'da Secrets ekranından verilecek). Arayüz duman testleri
+      AppTest ile başsız koşuyor (giriş görünür / yanlış parola hatası /
+      doğru giriş → panel + metrikler). Suite: 18 test yeşil.
+      KALAN (Faz 2b): sevkiyat editörü, firma/sürücü/araç sayfaları,
+      karışık yükleme ve güvenlik planı ekranları.
 - [ ] Faz 3 — PDF: QTextDocument+QPrinter → WeasyPrint (HTML şablonlar korunur;
       SecurityPlanEngine filigran hook'u burada bağlanır)
 - [ ] Faz 4 — 232 testin motor kısmının webcore'a uyarlanması
