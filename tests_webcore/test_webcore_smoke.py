@@ -13,9 +13,29 @@ import webcore
 from webcore import Chemical, ShipmentItem
 
 
-@pytest.fixture()
-def db(tmp_path):
-    return webcore.DatabaseManager(str(tmp_path / "test.db"))
+PG_DSN = os.environ.get("ADR_PG_TEST_DSN", "")
+
+
+@pytest.fixture(params=["sqlite", "pg"])
+def db(request, tmp_path):
+    """Aynı testler iki arka uçta da koşar: SQLite (yerel) + PostgreSQL.
+
+    Pg tarafı ADR_PG_TEST_DSN ortam değişkeni verilirse çalışır; verilmezse
+    (ör. Pg kurulmamış geliştirici makinesi) o parametre atlanır.
+    """
+    if request.param == "sqlite":
+        yield webcore.DatabaseManager(str(tmp_path / "test.db"))
+        return
+    if not PG_DSN:
+        pytest.skip("ADR_PG_TEST_DSN tanımlı değil")
+    from webcore.pg import PgDatabaseManager
+    mgr = PgDatabaseManager(PG_DSN)
+    # her test temiz tabloyla başlasın
+    for t in ("shipment_items", "shipments", "chemicals", "companies",
+              "drivers", "vehicles", "settings"):
+        mgr.execute_update(f"DELETE FROM {t}")
+    yield mgr
+    mgr.close()
 
 
 class Test1136:
