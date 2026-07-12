@@ -220,11 +220,20 @@ if bc2.button("💾 Kaydet", type="primary", use_container_width=True):
     elif not kalemler:
         st.error("En az bir kimyasal kalemi eklemeden kaydedilemez.")
     else:
+        # Kayıt anında motor sonuçları da hesaplanıp sevkiyata yazılır
+        # (monolit davranışı: liste ekranındaki Puan/Plaka/Tünel kolonları
+        # kalıcı veriden gelir, yalnız Doğrula anında görünen bilgi değildir).
+        _items = _item_nesneleri()
+        _puan, _plaka, _ = ADREngine.calculate_1136_points(_items)
+        _tunel = ADREngine.calculate_tunnel_restriction(_items)
         shipment = Shipment(
             id=sev["id"], document_no=sev["document_no"], document_date=sev["document_date"],
             status=sev["status"], sender_id=sev["sender_id"], receiver_id=sev["receiver_id"],
             carrier_id=sev["carrier_id"], driver_id=sev["driver_id"], vehicle_id=sev["vehicle_id"],
             exemption_type=sev["exemption_type"], notes=sev["notes"],
+            total_points=_puan, orange_plate_required=_plaka,
+            tunnel_restriction_code=_tunel if isinstance(_tunel, str) else str(_tunel),
+            is_validated=True,
         )
         try:
             if shipment.id:
@@ -249,4 +258,3 @@ if bc2.button("💾 Kaydet", type="primary", use_container_width=True):
                          "Lütfen farklı bir belge numarası girin.")
             else:
                 st.error(f"Kaydetme sırasında hata oluştu: {exc}")
-    st.rerun()

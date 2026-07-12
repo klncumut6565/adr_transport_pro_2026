@@ -44,8 +44,14 @@ Uyku sorunu: GitHub Actions keep-alive (Faz 5'te .github/workflows/keepalive.yml
       Cloud'da Secrets ekranından verilecek). Arayüz duman testleri
       AppTest ile başsız koşuyor (giriş görünür / yanlış parola hatası /
       doğru giriş → panel + metrikler). Suite: 18 test yeşil.
-      KALAN (Faz 2b): sevkiyat editörü, firma/sürücü/araç sayfaları,
-      karışık yükleme ve güvenlik planı ekranları.
+      Faz 2b TAMAMLANDI (Umut): sevkiyat editörü (Doğrula: 1.1.3.6 +
+      tünel + uyumsuzluk; Kaydet: motor sonuçları sevkiyata kalıcı yazılır),
+      firmalar/sürücüler/araçlar CRUD sayfaları, karışık yükleme ekranı
+      (7.5.2), güvenlik planı ekranı (1.10.3). webcore/session.py ile
+      cache kaynakları app.py'den ayrıldı (çift-render düzeltmesi).
+      NOT — bilinçli motor sapması: check_compatibility tekilleştirme/sıra
+      düzeltmesi (webcore/engines.py başlık notu + kilit testi).
+      KALAN (Faz 2c): raporlar sayfası, ayarlar/antet, kimyasal içe aktarma.
 - [ ] Faz 3 — PDF: QTextDocument+QPrinter → WeasyPrint (HTML şablonlar korunur;
       SecurityPlanEngine filigran hook'u burada bağlanır)
 - [ ] Faz 4 — 232 testin motor kısmının webcore'a uyarlanması

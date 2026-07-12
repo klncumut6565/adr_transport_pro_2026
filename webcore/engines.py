@@ -1,4 +1,12 @@
-"""ADREngine + SecurityPlanEngine (monolitten satırı satırına)."""
+"""ADREngine + SecurityPlanEngine (monolitten satırı satırına).
+
+BİLİNÇLİ SAPMA (Faz 2b, tek nokta): check_compatibility içindeki uyumsuzluk
+listesi monolitte `list(set(errors))` ile döndürülüyordu — bu hem sırayı
+belirsizleştiriyor hem A+B / B+A ayna kopyalarını bırakıyordu. Web'de sırasız
+çift bazında tekilleştirme + kararlı sıra kullanılır. Mesaj İÇERİKLERİ ve
+kural mantığı DEĞİŞMEMİŞTİR; yalnızca tekrar/sıralama davranışı düzeltildi.
+Masaüstü (donmuş) sürümde eski davranış sürer. Bu sapma
+tests_webcore/test_webcore_smoke.py::TestCompatibilityDedup ile kilitlidir."""
 
 from __future__ import annotations
 

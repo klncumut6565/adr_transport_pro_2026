@@ -185,3 +185,37 @@ class TestAuth:
         assert verify_password("türkçe-ĞÜŞİÖÇ-parola", h)
         assert not verify_password("baska", h)
         assert not verify_password("x", "bozukformat")
+
+
+
+class TestCompatibilityDedup:
+    """Faz 2b motor sapması kilidi: uyumsuzluk listesi ayna kopyasız
+    ve kararlı sıralı olmalı (bkz. webcore/engines.py başlık notu)."""
+
+    def test_no_mirrored_pairs_and_stable_order(self):
+        f = ShipmentItem.__dataclass_fields__
+        mk = lambda **o: ShipmentItem(**{k: v for k, v in o.items() if k in f})
+        # Yapay iki uyumsuz ayrışma grubu (matristen bağımsız çalışsın diye
+        # gerçek bir çift seçiyoruz: matris boşsa test kendini atlar)
+        from webcore.constants import INCOMPATIBILITY_MATRIX as M
+        pair = next(((g, o) for g, lst in M.items() for o in lst if o in M), None)
+        if not pair:
+            pytest.skip("uyumsuzluk matrisi boş")
+        g1, g2 = pair
+        items = [
+            mk(un_number="1", proper_name="A", segregation_group=g1,
+               transport_category="2", net_quantity=1, unit="kg"),
+            mk(un_number="2", proper_name="B", segregation_group=g2,
+               transport_category="2", net_quantity=1, unit="kg"),
+        ]
+        r1 = webcore.ADREngine.check_compatibility(items)
+        r2 = webcore.ADREngine.check_compatibility(items)
+        assert r1 == r2, "sıra kararlı olmalı"
+        # ayna kopya yok: her sırasız çift en fazla 1 kez
+        gorulen = set()
+        for msg in r1:
+            icerik = msg.split(":", 1)[-1]
+            parcalar = tuple(sorted(p.strip().rstrip("!").split(" birlikte")[0]
+                                    for p in icerik.split("+")))
+            assert parcalar not in gorulen, f"ayna kopya: {msg}"
+            gorulen.add(parcalar)
