@@ -25,6 +25,12 @@ except ImportError:
 from .constants import *  # noqa: F403
 from .models import *  # noqa: F403
 
+
+def _adr_engine():
+    """Geç import: db<->engines döngü riskine karşı (yalnız içe aktarıcı kullanır)."""
+    from .engines import ADREngine
+    return ADREngine
+
 class DatabaseManager:
     """SQLite veritabani yonetimi - her islemde yeni baglanti."""
 
@@ -1157,8 +1163,8 @@ class DatabaseManager:
                 special_provisions=special,
                 limited_quantity=lq_text,
                 excepted_quantity=eq_code,
-                lq_allowed=ADREngine.parse_lq_limit(lq_text)[0] > 0,
-                eq_allowed=ADREngine.eq_limits(eq_code)[0] > 0,
+                lq_allowed=_adr_engine().parse_lq_limit(lq_text)[0] > 0,
+                eq_allowed=_adr_engine().eq_limits(eq_code)[0] > 0,
                 hazard_labels=self._xl_clean(row[5] if len(row) > 5 else None),
             )
             if self._upsert_chemical(c):
@@ -1233,8 +1239,8 @@ class DatabaseManager:
                     special_provisions=" | ".join(filter(None, [get(row, "ozel"), notes])),
                     limited_quantity=lq_text,
                     excepted_quantity=eq_code,
-                    lq_allowed=ADREngine.parse_lq_limit(lq_text)[0] > 0,
-                    eq_allowed=ADREngine.eq_limits(eq_code)[0] > 0,
+                    lq_allowed=_adr_engine().parse_lq_limit(lq_text)[0] > 0,
+                    eq_allowed=_adr_engine().eq_limits(eq_code)[0] > 0,
                 )
                 self._upsert_chemical(c)
                 ticari = get(row, "ticari") or ""

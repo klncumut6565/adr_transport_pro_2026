@@ -59,3 +59,31 @@ class TestSevkiyatEditoruDogrudanGiris:
         assert not t.exception, f"doğrudan girişte hata: {[str(e.value) for e in t.exception]}"
         assert any("Sevkiyat Editörü" in str(x.value) for x in t.title)
         assert t.session_state["editor_sevkiyat"]["id"] in (0, None)
+
+
+class TestAyarlarSayfasi:
+    """Faz 2c: ayarlar sayfası — admin erişimi ve rol kapısı."""
+
+    def _run_page(self, role):
+        from streamlit.testing.v1 import AppTest
+        t = AppTest.from_file("sayfalar/ayarlar.py", default_timeout=30)
+        t.secrets["db"] = {"dsn": PG_DSN}
+        t.session_state["user"] = {"username": "u", "tenant_id": 1,
+                                   "role": role, "full_name": "U"}
+        t.run()
+        return t
+
+    def test_admin_gorur(self):
+        if not PG_DSN:
+            pytest.skip("ADR_PG_TEST_DSN_APP tanımlı değil")
+        t = self._run_page("admin")
+        assert not t.exception
+        assert any("Firma Bilgileri" in str(h.value) for h in t.subheader)
+
+    def test_user_engellenir(self):
+        if not PG_DSN:
+            pytest.skip("ADR_PG_TEST_DSN_APP tanımlı değil")
+        t = self._run_page("user")
+        assert not t.exception
+        assert t.info, "admin olmayana bilgi mesajı beklenir"
+        assert not any("Firma Bilgileri" in str(h.value) for h in t.subheader)

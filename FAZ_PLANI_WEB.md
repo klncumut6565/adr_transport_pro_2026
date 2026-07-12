@@ -51,7 +51,14 @@ Uyku sorunu: GitHub Actions keep-alive (Faz 5'te .github/workflows/keepalive.yml
       cache kaynakları app.py'den ayrıldı (çift-render düzeltmesi).
       NOT — bilinçli motor sapması: check_compatibility tekilleştirme/sıra
       düzeltmesi (webcore/engines.py başlık notu + kilit testi).
-      KALAN (Faz 2c): raporlar sayfası, ayarlar/antet, kimyasal içe aktarma.
+      Faz 2c BÜYÜK ORANDA TAMAM: `sayfalar/ayarlar.py` (yalnız admin) —
+      doc_company_* firma bilgileri (evrak antetiyle birebir anahtarlar),
+      antet logosu yükle/kaldır (PDF filigranını besler), ADR Tablo A
+      xlsx içe aktarma (Pg'de 2873 kayıt / 5 sn, SQLite ile parite testli)
+      + onaylı tablo boşaltma. db.py yapıştırma düzeltmesi: içe aktarıcının
+      ADREngine referansları geç-import'a bağlandı (döngü riski notuyla).
+      KALAN (Faz 2d): raporlar sayfası (aylık dağılım, sınıf kırılımı,
+      Excel/PDF çıktı) + firma envanteri (ASUTEK formatı) içe aktarma.
 - [~] Faz 3a — PDF motoru: `webcore/pdf.py` → html_to_pdf_bytes (WeasyPrint,
       A4) + build_letterhead_watermark_b64 (monolitten satırı satırına, saf
       Pillow) + filigran HOOK'u: engines'e ShipmentEditorPage vekili enjekte

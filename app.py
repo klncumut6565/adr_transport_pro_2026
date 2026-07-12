@@ -87,6 +87,10 @@ def main():
         st.Page("sayfalar/arac.py",
                 title="Araçlar", icon="🚚"),
     ]
+    if user["role"] == "admin":
+        pages.append(st.Page("sayfalar/ayarlar.py",
+                             title="Ayarlar", icon="⚙️"))
+
 
     with st.sidebar:
         st.markdown(f"**{user.get('full_name') or user['username']}**  \n"

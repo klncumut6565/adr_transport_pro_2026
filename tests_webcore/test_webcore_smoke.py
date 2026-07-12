@@ -300,3 +300,23 @@ class TestTransportDocFaz3b:
         assert "ĞÜŞİÖÇ" in html               # Türkçe karakter
         pdf = html_to_pdf_bytes(html)
         assert pdf[:5] == b"%PDF-" and len(pdf) > 5000
+
+
+class TestTableAImport:
+    """Faz 2c: Tablo A içe aktarma — Pg üzerinde gerçek dosyayla."""
+
+    def test_import_parity_and_content(self, pgdb2=None):
+        if not PG_DSN:
+            pytest.skip("ADR_PG_TEST_DSN tanımlı değil")
+        import os
+        if not os.path.exists("ADR_A_TABLOSU.xlsx"):
+            pytest.skip("Tablo A dosyası yok")
+        from webcore.pg import PgDatabaseManager
+        db = PgDatabaseManager(PG_DSN)
+        db.execute_update("DELETE FROM chemicals")
+        n = db.import_table_a_excel("ADR_A_TABLOSU.xlsx")
+        assert n == 2873 and db.count_chemicals() == 2873
+        r = db.search_chemicals("1203")[0]
+        assert r.class_code == "3" and r.tunnel_code == "D/E"
+        db.execute_update("DELETE FROM chemicals")
+        db.close()
