@@ -58,9 +58,15 @@ Uyku sorunu: GitHub Actions keep-alive (Faz 5'te .github/workflows/keepalive.yml
       edilir, motor koduna dokunulmadan Faz 0a'daki "bilinçli boş" kapatıldı.
       Güvenlik planı sayfasına PDF indirme eklendi (sonuç session'da tutulur).
       Cloud: requirements.txt += weasyprint, packages.txt (libpango...).
-      KALAN (Faz 3b): _build_print_html (579 satır, taşıma evrakı şablonu)
-      webcore'a taşınacak + sevkiyat editörüne Taşıma Evrakı PDF butonu;
-      antet logosu yükleme ekranı (Ayarlar, Faz 2c ile birleşir).
+      Faz 3b TAMAMLANDI: `webcore/transport_doc.py` →
+      build_transport_document_html; monolit _build_print_html'den (579
+      satır) satırı satırına, 16 self.* erişimi parametreye eşlendi
+      (envanter belgeli). İki taşıma düzeltmesi: hasattr(self) savunması
+      parametreye çevrildi, eksik timedelta importu eklendi. Sevkiyat
+      editörüne "Taşıma Evrakı PDF" butonu (sonuç session'da, indirme
+      rerun'a dayanıklı). Testler: puan şeridi, SRC5 süre-uyarı dalı,
+      Türkçe karakter, %PDF imzası. KALAN (Faz 3c → Faz 2c ile):
+      antet logosu yükleme (Ayarlar sayfası), doc_company_* ayar ekranı.
 - [ ] Faz 4 — 232 testin motor kısmının webcore'a uyarlanması
 - [ ] Faz 5 — Streamlit Cloud dağıtım + secrets + keep-alive workflow
 - [ ] Faz 6 — Masaüstü adr_database.db → PostgreSQL veri migrasyonu

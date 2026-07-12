@@ -185,7 +185,7 @@ def _item_nesneleri():
     return [ShipmentItem(**{k: v for k, v in k_dict.items()}) for k_dict in kalemler]
 
 
-bc1, bc2 = st.columns(2)
+bc1, bc2, bc3 = st.columns(3)
 if bc1.button("🔍 Doğrula", use_container_width=True):
     items = _item_nesneleri()
     sender = d.get_company(sev["sender_id"]) if sev["sender_id"] else None
@@ -258,3 +258,33 @@ if bc2.button("💾 Kaydet", type="primary", use_container_width=True):
                          "Lütfen farklı bir belge numarası girin.")
             else:
                 st.error(f"Kaydetme sırasında hata oluştu: {exc}")
+
+
+# ── Taşıma Evrakı PDF (Faz 3b) ─────────────────────────────────────────
+if bc3.button("📄 Taşıma Evrakı PDF", use_container_width=True,
+              disabled=not (sev["id"] and kalemler)):
+    try:
+        from webcore.transport_doc import build_transport_document_html
+        from webcore.pdf import html_to_pdf_bytes
+        _items = _item_nesneleri()
+        html = build_transport_document_html(
+            db=d, items=_items,
+            document_no=sev["document_no"],
+            document_date_str=str(sev["document_date"]),
+            sender=d.get_company(sev["sender_id"]) if sev["sender_id"] else None,
+            receiver=d.get_company(sev["receiver_id"]) if sev["receiver_id"] else None,
+            driver=d.get_driver(sev["driver_id"]) if sev["driver_id"] else None,
+            vehicle=d.get_vehicle(sev["vehicle_id"]) if sev["vehicle_id"] else None,
+            status_text=sev["status"], notes=sev["notes"] or "")
+        st.session_state["tasima_evraki_pdf"] = html_to_pdf_bytes(html)
+    except ImportError:
+        st.info("PDF için WeasyPrint gerekli (Cloud'da otomatik kurulur).")
+    except Exception as exc:
+        st.error(f"PDF üretilemedi: {exc}")
+
+if st.session_state.get("tasima_evraki_pdf"):
+    st.download_button(
+        "⬇️ Taşıma Evrakını indir",
+        data=st.session_state["tasima_evraki_pdf"],
+        file_name=f"tasima_evraki_{sev['document_no'] or 'taslak'}.pdf",
+        mime="application/pdf", use_container_width=True)

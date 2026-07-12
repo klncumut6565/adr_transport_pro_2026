@@ -258,3 +258,45 @@ class TestPdfFaz3:
         b64 = build_letterhead_watermark_b64("", is_approved=False)
         assert b64, "onaysız evrakta TASLAK damgası üretilmeli"
         assert build_letterhead_watermark_b64("", is_approved=True) == ""
+
+
+class TestTransportDocFaz3b:
+    """Faz 3b: taşıma evrakı şablonunun webcore taşıması."""
+
+    @pytest.fixture()
+    def pgdb2(self):
+        if not PG_DSN:
+            pytest.skip("ADR_PG_TEST_DSN tanımlı değil")
+        from webcore.pg import PgDatabaseManager
+        mgr = PgDatabaseManager(PG_DSN)
+        yield mgr
+        mgr.close()
+
+    def test_html_and_pdf_full_paths(self, pgdb2):
+        pytest.importorskip("weasyprint")
+        import datetime as dt
+        from webcore.transport_doc import build_transport_document_html
+        from webcore.pdf import html_to_pdf_bytes
+        from webcore import Company, Driver, Vehicle
+
+        yakin = (dt.date.today() + dt.timedelta(days=30)).isoformat()
+        driver = Driver(full_name="Test Sürücü", tc_no="1", src5_no="S",
+                        src5_expiry=yakin)
+        f = ShipmentItem.__dataclass_fields__
+        mk = lambda **o: ShipmentItem(**{k: v for k, v in o.items() if k in f})
+        items = [mk(un_number="1263", proper_name="BOYA", class_code="3",
+                    packing_group="III", packaging_type="Teneke",
+                    packaging_count=10, net_quantity=100, unit="L",
+                    transport_category="3", tunnel_code="D/E")]
+        html = build_transport_document_html(
+            db=pgdb2, items=items, document_no="T-1",
+            document_date_str="01.01.2026",
+            sender=Company(type="sender", name="GÖNDEREN ĞÜŞİÖÇ"),
+            receiver=Company(type="receiver", name="ALICI"),
+            driver=driver, vehicle=Vehicle(plate="34 T 1"),
+            status_text="Onaylandı", notes="")
+        assert "100 / 1000" in html          # puan şeridi
+        assert "gün kaldı" in html            # SRC5 uyarı dalı (timedelta)
+        assert "ĞÜŞİÖÇ" in html               # Türkçe karakter
+        pdf = html_to_pdf_bytes(html)
+        assert pdf[:5] == b"%PDF-" and len(pdf) > 5000
