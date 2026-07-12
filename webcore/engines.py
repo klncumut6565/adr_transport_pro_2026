@@ -1197,13 +1197,18 @@ class ADREngine:
             if item.segregation_group:
                 groups.add(item.segregation_group)
 
+        seen_pairs = set()
         for group in groups:
             incompatible = INCOMPATIBILITY_MATRIX.get(group, [])
             for other in groups:
                 if other != group and other in incompatible:
+                    pair_key = tuple(sorted((group, other)))
+                    if pair_key in seen_pairs:
+                        continue
+                    seen_pairs.add(pair_key)
                     errors.append(f"UYUMSUZ: {group} + {other} birlikte tasinamaz!")
 
-        return list(set(errors))
+        return errors
 
     # ------------------------------------------------------------------
     # LQ (ADR 3.4) / EQ (ADR 3.5) — maddeye ozgu limitler
