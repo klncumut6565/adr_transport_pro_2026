@@ -24,7 +24,19 @@ Uyku sorunu: GitHub Actions keep-alive (Faz 5'te .github/workflows/keepalive.yml
       iki arka uçta parametrik koşuyor (11 test yeşil).
       KALAN: Supabase bağlantısı gelince ADR_PG_TEST_DSN ile aynı testler
       Supabase'e karşı koşulacak; requirements'a psycopg[binary] eklenecek.
-- [ ] Faz 1 — Kimlik doğrulama + çoklu firma (streamlit-authenticator, company_id filtresi)
+- [x] Faz 1a — Kiracı izolasyonu: PostgreSQL Row Level Security.
+      Her iş tablosunda tenant_izolasyon politikası (USING + WITH CHECK,
+      FORCE RLS — tablo sahibi de muaf değil); aktif kiracı bağlantı
+      oturumunda app.tenant_id ile taşınır (set_config), tenant_id
+      DEFAULT'u da buradan beslenir. 56 iş metodu değişmeden kiracıya
+      kilitlendi. Doğrulama: okuma ayrımı, id yoklama, çapraz yazma
+      (InsufficientPrivilege), set_tenant geçişi.
+- [x] Faz 1b — Kimlik doğrulama: `webcore/auth.py` → tenants + web_users
+      tabloları (BİLİNÇLİ olarak RLS dışı: giriş anında kiracı bilinmez),
+      PBKDF2-HMAC-SHA256 600k tur + kullanıcı başına tuz, roller
+      (admin/user/viewer), 5 hatalı girişte 15 dk kilit, parola sıfırlama.
+      Akış: login() → tenant_id → PgDatabaseManager.set_tenant() → RLS.
+      KALAN (Faz 2 ile birlikte): Streamlit giriş sayfası bu modülü kullanacak.
 - [ ] Faz 2 — 12 sayfanın st.navigation ile taşınması
 - [ ] Faz 3 — PDF: QTextDocument+QPrinter → WeasyPrint (HTML şablonlar korunur;
       SecurityPlanEngine filigran hook'u burada bağlanır)

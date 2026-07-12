@@ -114,3 +114,74 @@ class TestSecurityPlan:
             "class_code": "1", "packing_group": "",
             "classification_code": "1.1D"})
         assert r.get("in_scope") in (True, "conditional")
+
+
+class TestTenantIsolationRLS:
+    """RLS kiracı izolasyonu — yalnız Pg'de anlamlı."""
+
+    @pytest.fixture()
+    def pgdb(self):
+        if not PG_DSN:
+            pytest.skip("ADR_PG_TEST_DSN tanımlı değil")
+        from webcore.pg import PgDatabaseManager
+        mgr = PgDatabaseManager(PG_DSN, tenant_id=1)
+        mgr.execute_update("DELETE FROM companies")
+        mgr.set_tenant(2)
+        mgr.execute_update("DELETE FROM companies")
+        mgr.set_tenant(1)
+        yield mgr
+        mgr.close()
+
+    def test_read_isolation_and_id_probe(self, pgdb):
+        from webcore import Company
+        F = lambda **o: Company(**{k: v for k, v in o.items()
+                                   if k in Company.__dataclass_fields__})
+        pgdb.add_company(F(type="sender", name="K1-A"))
+        cid = pgdb.get_companies()[0].id
+        pgdb.set_tenant(2)
+        assert pgdb.get_companies() == []
+        assert pgdb.get_company(cid) is None
+        pgdb.set_tenant(1)
+        assert [c.name for c in pgdb.get_companies()] == ["K1-A"]
+
+    def test_cross_tenant_write_blocked(self, pgdb):
+        pgdb.set_tenant(2)
+        with pytest.raises(Exception):
+            pgdb.execute_insert(
+                "INSERT INTO companies (type, name, tenant_id) "
+                "VALUES (?, ?, ?)", ("sender", "SIZMA", 1))
+
+
+class TestAuth:
+    """Faz 1 kimlik doğrulama — yalnız Pg'de anlamlı."""
+
+    @pytest.fixture()
+    def auth(self):
+        if not PG_DSN:
+            pytest.skip("ADR_PG_TEST_DSN tanımlı değil")
+        from webcore.pg import PgDatabaseManager
+        from webcore.auth import AuthManager
+        mgr = PgDatabaseManager(PG_DSN)
+        a = AuthManager(mgr)
+        mgr.execute_update("DELETE FROM web_users")
+        mgr.execute_update("DELETE FROM tenants")
+        yield a
+        mgr.close()
+
+    def test_login_roundtrip_and_lockout(self, auth):
+        t = auth.create_tenant("Test Kiracı")
+        auth.create_user(t, "Deneme", "Parola!1", role="admin")
+        u = auth.login("deneme", "Parola!1")
+        assert u and u["tenant_id"] == t and "password_hash" not in u
+        for _ in range(5):
+            assert auth.login("deneme", "yanlis") is None
+        assert auth.login("deneme", "Parola!1") is None  # kilitli
+        auth.set_password("deneme", "Yeni!2")
+        assert auth.login("deneme", "Yeni!2")
+
+    def test_password_hash_functions(self, auth):
+        from webcore.auth import hash_password, verify_password
+        h = hash_password("türkçe-ĞÜŞİÖÇ-parola")
+        assert verify_password("türkçe-ĞÜŞİÖÇ-parola", h)
+        assert not verify_password("baska", h)
+        assert not verify_password("x", "bozukformat")

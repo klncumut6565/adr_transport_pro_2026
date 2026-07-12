@@ -202,7 +202,20 @@ class PgDatabaseManager(DatabaseManager):
             self.connection = psycopg.connect(
                 self.dsn, row_factory=dict_row,
                 cursor_factory=TranslatingCursor, autocommit=True)
+            # Kiracı kimliği oturum değişkenine yazılır; RLS politikaları
+            # tüm sorguları buna göre süzer. İş metotları hiç değişmez.
+            with self.connection.cursor() as cur:
+                cur.execute("SELECT set_config('app.tenant_id', %s, false)",
+                            (str(self.tenant_id),))
         return self.connection
+
+    def set_tenant(self, tenant_id: int):
+        """Aktif kiracıyı değiştirir (giriş sonrası çağrılır)."""
+        self.tenant_id = tenant_id
+        if self.connection and not self.connection.closed:
+            with self.connection.cursor() as cur:
+                cur.execute("SELECT set_config('app.tenant_id', %s, false)",
+                            (str(tenant_id),))
 
     # ── geçitler (çeviri cursor'da; burada yalnız dönüş farkları) ────
     def execute(self, query: str, params: tuple = ()) -> List[dict]:
@@ -244,6 +257,20 @@ class PgDatabaseManager(DatabaseManager):
             for t in TENANT_TABLES:
                 cur.execute(f"CREATE INDEX IF NOT EXISTS idx_{t}_tenant "
                             f"ON {t}(tenant_id)")
+                # Yeni satırlar otomatik olarak aktif kiracıya yazılsın
+                cur.execute(
+                    f"ALTER TABLE {t} ALTER COLUMN tenant_id SET DEFAULT "
+                    f"COALESCE(NULLIF(current_setting('app.tenant_id', true), '')::bigint, 1)")
+                # Satır Düzeyi Güvenlik: kiracı izolasyonu veritabanında.
+                # FORCE şart — tablo sahibi rol (Supabase'de 'postgres')
+                # aksi hâlde politikalardan muaf kalır.
+                cur.execute(f"ALTER TABLE {t} ENABLE ROW LEVEL SECURITY")
+                cur.execute(f"ALTER TABLE {t} FORCE ROW LEVEL SECURITY")
+                cur.execute(f"DROP POLICY IF EXISTS tenant_izolasyon ON {t}")
+                cur.execute(
+                    f"CREATE POLICY tenant_izolasyon ON {t} "
+                    f"USING (tenant_id = COALESCE(NULLIF(current_setting('app.tenant_id', true), '')::bigint, 1)) "
+                    f"WITH CHECK (tenant_id = COALESCE(NULLIF(current_setting('app.tenant_id', true), '')::bigint, 1))")
 
     # ── Pg'de anlamsız kalan sqlite işlevleri ────────────────────────
     def get_top_senders(self, limit=10, year=None) -> list:
