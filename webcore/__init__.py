@@ -19,3 +19,4 @@ from .constants import *  # noqa: F401,F403
 from .models import *     # noqa: F401,F403
 from .db import DatabaseManager  # noqa: F401
 from .engines import ADREngine, SecurityPlanEngine  # noqa: F401
+from .errors import turkce_hata_metni  # noqa: F401

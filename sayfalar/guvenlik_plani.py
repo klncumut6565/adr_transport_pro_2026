@@ -9,6 +9,7 @@ import streamlit as st
 
 from sayfalar._ortak import db
 from webcore.engines import ADREngine, SecurityPlanEngine
+from webcore.errors import turkce_hata_metni
 from webcore.models import ShipmentItem
 
 st.title("🛡 Güvenlik Planı — ADR 1.10.3")
@@ -105,4 +106,4 @@ if "gp_sonuc" in st.session_state:
         st.info("PDF üretimi için sunucuda WeasyPrint gerekli "
                 "(requirements.txt + packages.txt ile Cloud'da otomatik kurulur).")
     except Exception as exc:
-        st.error(f"PDF üretilemedi: {exc}")
+        st.error(f"PDF üretilemedi: {turkce_hata_metni(exc)}")

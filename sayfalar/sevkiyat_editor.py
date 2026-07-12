@@ -14,6 +14,7 @@ import streamlit as st
 from sayfalar._ortak import db
 from webcore.models import Shipment, ShipmentItem, DocumentStatus
 from webcore.engines import ADREngine
+from webcore.errors import turkce_hata_metni
 
 PAKET_TURLERI = ["IBC", "Varil", "Bidon", "Kutu", "Çuval",
                   "Kompozit Ambalaj", "Tank", "Dökme"]
@@ -261,7 +262,7 @@ if bc2.button("💾 Kaydet", type="primary", use_container_width=True):
                 st.error(f"Bu Belge No ('{sev['document_no']}') zaten kayıtlı. "
                          "Lütfen farklı bir belge numarası girin.")
             else:
-                st.error(f"Kaydetme sırasında hata oluştu: {exc}")
+                st.error(f"Kaydetme sırasında hata oluştu: {turkce_hata_metni(exc)}")
 
 
 # ── Taşıma Evrakı PDF (Faz 3b) ─────────────────────────────────────────
@@ -284,7 +285,7 @@ if bc3.button("📄 Taşıma Evrakı PDF", use_container_width=True,
     except ImportError:
         st.info("PDF için WeasyPrint gerekli (Cloud'da otomatik kurulur).")
     except Exception as exc:
-        st.error(f"PDF üretilemedi: {exc}")
+        st.error(f"PDF üretilemedi: {turkce_hata_metni(exc)}")
 
 if st.session_state.get("tasima_evraki_pdf"):
     st.download_button(

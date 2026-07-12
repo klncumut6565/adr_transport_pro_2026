@@ -9,6 +9,7 @@ import io
 from datetime import datetime
 
 import streamlit as st
+from webcore.errors import turkce_hata_metni
 
 from sayfalar._ortak import db, kullanici
 
@@ -143,7 +144,7 @@ with ec1:
                                 ".spreadsheetml.sheet",
                            use_container_width=True)
     except Exception as exc:
-        st.error(f"Excel üretilemedi: {exc}")
+        st.error(f"Excel üretilemedi: {turkce_hata_metni(exc)}")
 with ec2:
     try:
         st.download_button("⬇️ PDF raporu", data=_pdf_raporu(),
@@ -152,4 +153,4 @@ with ec2:
     except ImportError:
         st.info("PDF için WeasyPrint gerekli (Cloud'da otomatik kurulur).")
     except Exception as exc:
-        st.error(f"PDF üretilemedi: {exc}")
+        st.error(f"PDF üretilemedi: {turkce_hata_metni(exc)}")

@@ -9,6 +9,7 @@ import tempfile
 from pathlib import Path
 
 import streamlit as st
+from webcore.errors import turkce_hata_metni
 
 from sayfalar._ortak import db, kullanici
 
@@ -90,7 +91,7 @@ if xlsx is not None and st.button("🚀 İçe aktarmayı başlat", type="primary
             n = d.import_table_a_excel(yol)
         st.success(f"{n} kayıt içe aktarıldı. Toplam: {d.count_chemicals()}")
     except Exception as exc:
-        st.error(f"İçe aktarma hatası: {exc}")
+        st.error(f"İçe aktarma hatası: {turkce_hata_metni(exc)}")
     finally:
         Path(yol).unlink(missing_ok=True)
 
@@ -122,6 +123,6 @@ if env is not None and st.button("🚀 Envanteri içe aktar", type="primary",
             n = d.import_company_inventory_excel(yol)
         st.success(f"{n} envanter kaydı içe aktarıldı.")
     except Exception as exc:
-        st.error(f"İçe aktarma hatası: {exc}")
+        st.error(f"İçe aktarma hatası: {turkce_hata_metni(exc)}")
     finally:
         Path(yol).unlink(missing_ok=True)
