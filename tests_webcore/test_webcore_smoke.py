@@ -219,3 +219,42 @@ class TestCompatibilityDedup:
                                     for p in icerik.split("+")))
             assert parcalar not in gorulen, f"ayna kopya: {msg}"
             gorulen.add(parcalar)
+
+
+class TestPdfFaz3:
+    """Faz 3a: WeasyPrint PDF motoru + filigran hook'u."""
+
+    def test_watermark_hook_installed_and_pdf_renders(self):
+        pytest.importorskip("weasyprint")
+        import base64, io
+        PIL = pytest.importorskip("PIL.Image")
+        import webcore.pdf as wpdf
+        import webcore.engines as eng
+
+        # hook: modül import'u shim'i kurmuş olmalı
+        assert hasattr(eng, "ShipmentEditorPage")
+
+        img = PIL.new("RGBA", (120, 50), (10, 60, 160, 255))
+        buf = io.BytesIO(); img.save(buf, "PNG")
+        logo = base64.b64encode(buf.getvalue()).decode()
+
+        f = ShipmentItem.__dataclass_fields__
+        mk = lambda **o: ShipmentItem(**{k: v for k, v in o.items() if k in f})
+        items = [mk(un_number="0081", proper_name="PATLAYICI",
+                    class_code="1", transport_category="1",
+                    net_quantity=30, unit="kg", tunnel_code="B")]
+        res = eng.SecurityPlanEngine.check(items)
+        html = eng.SecurityPlanEngine.generate_inventory_review_html(
+            company_name="TEST A.Ş.", prepared_by="T", approved_by="T",
+            screen_result=res, logo_b64=logo)
+        assert "data:image/png;base64" in html, "filigran gömülmedi"
+
+        pdf = wpdf.html_to_pdf_bytes(html)
+        assert pdf[:5] == b"%PDF-" and len(pdf) > 5000
+
+    def test_watermark_draft_stamp_without_logo(self):
+        pytest.importorskip("PIL")
+        from webcore.pdf import build_letterhead_watermark_b64
+        b64 = build_letterhead_watermark_b64("", is_approved=False)
+        assert b64, "onaysız evrakta TASLAK damgası üretilmeli"
+        assert build_letterhead_watermark_b64("", is_approved=True) == ""

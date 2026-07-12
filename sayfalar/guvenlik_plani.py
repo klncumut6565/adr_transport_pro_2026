@@ -57,6 +57,10 @@ if st.button("🔍 Emniyet Planı Gereksinimini Hesapla", type="primary", use_co
     puan, plaka_gerekli, _detay = ADREngine.calculate_1136_points(items)
     sonuc = SecurityPlanEngine.check(items, transport_mode=secili_mod,
                                       total_1136_points=puan)
+    st.session_state["gp_sonuc"] = (puan, sonuc)
+
+if "gp_sonuc" in st.session_state:
+    puan, sonuc = st.session_state["gp_sonuc"]
 
     st.metric("Toplam 1.1.3.6 Puanı", f"{puan:.0f}")
 
@@ -79,3 +83,26 @@ if st.button("🔍 Emniyet Planı Gereksinimini Hesapla", type="primary", use_co
         with st.expander("Kalem bazlı değerlendirme detayı", expanded=False):
             for det in sonuc["details"]:
                 st.text(det)
+
+
+    st.divider()
+    st.subheader("📄 PDF Raporu")
+    from webcore.pdf import html_to_pdf_bytes  # hook'u da kurar
+    from sayfalar._ortak import kullanici
+
+    logo_b64 = d.get_setting("antet_logo_b64") or ""
+    hazirlayan = kullanici().get("full_name") or kullanici().get("username", "")
+    try:
+        html = SecurityPlanEngine.generate_inventory_review_html(
+            company_name=d.get_setting("firma_adi") or "",
+            prepared_by=hazirlayan, approved_by=hazirlayan,
+            screen_result=sonuc, logo_b64=logo_b64)
+        pdf = html_to_pdf_bytes(html)
+        st.download_button("⬇️ Emniyet Değerlendirme PDF'ini indir", data=pdf,
+                           file_name="emniyet_plani_degerlendirme.pdf",
+                           mime="application/pdf", use_container_width=True)
+    except ImportError:
+        st.info("PDF üretimi için sunucuda WeasyPrint gerekli "
+                "(requirements.txt + packages.txt ile Cloud'da otomatik kurulur).")
+    except Exception as exc:
+        st.error(f"PDF üretilemedi: {exc}")

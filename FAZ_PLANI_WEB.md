@@ -52,8 +52,15 @@ Uyku sorunu: GitHub Actions keep-alive (Faz 5'te .github/workflows/keepalive.yml
       NOT — bilinçli motor sapması: check_compatibility tekilleştirme/sıra
       düzeltmesi (webcore/engines.py başlık notu + kilit testi).
       KALAN (Faz 2c): raporlar sayfası, ayarlar/antet, kimyasal içe aktarma.
-- [ ] Faz 3 — PDF: QTextDocument+QPrinter → WeasyPrint (HTML şablonlar korunur;
-      SecurityPlanEngine filigran hook'u burada bağlanır)
+- [~] Faz 3a — PDF motoru: `webcore/pdf.py` → html_to_pdf_bytes (WeasyPrint,
+      A4) + build_letterhead_watermark_b64 (monolitten satırı satırına, saf
+      Pillow) + filigran HOOK'u: engines'e ShipmentEditorPage vekili enjekte
+      edilir, motor koduna dokunulmadan Faz 0a'daki "bilinçli boş" kapatıldı.
+      Güvenlik planı sayfasına PDF indirme eklendi (sonuç session'da tutulur).
+      Cloud: requirements.txt += weasyprint, packages.txt (libpango...).
+      KALAN (Faz 3b): _build_print_html (579 satır, taşıma evrakı şablonu)
+      webcore'a taşınacak + sevkiyat editörüne Taşıma Evrakı PDF butonu;
+      antet logosu yükleme ekranı (Ayarlar, Faz 2c ile birleşir).
 - [ ] Faz 4 — 232 testin motor kısmının webcore'a uyarlanması
 - [ ] Faz 5 — Streamlit Cloud dağıtım + secrets + keep-alive workflow
 - [ ] Faz 6 — Masaüstü adr_database.db → PostgreSQL veri migrasyonu
