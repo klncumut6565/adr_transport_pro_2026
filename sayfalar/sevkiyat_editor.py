@@ -107,7 +107,7 @@ kalemler = st.session_state["editor_kalemler"]
 
 st.markdown(_KOMPAKT_CSS, unsafe_allow_html=True)
 
-st.title("📝 Taşıma Evrakı" + (f" — #{sev['id']}" if sev["id"] else " — Yeni"))
+st.title("📝 Taşıma Evrakı")
 if st.button("← Sevkiyatlar listesine dön"):
     st.session_state["duzenlenecek_sevkiyat_id"] = None
     st.switch_page("sayfalar/sevkiyatlar.py")
