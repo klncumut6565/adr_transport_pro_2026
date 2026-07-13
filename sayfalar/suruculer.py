@@ -10,8 +10,7 @@ d = db()
 
 def _bos_form_state():
     st.session_state["surucu_duzenle_id"] = None
-    for alan in ("full_name", "tc_no", "phone", "adr_certificate_no",
-                 "adr_certificate_expiry", "src5_no", "src5_expiry",
+    for alan in ("full_name", "tc_no", "phone", "src5_no", "src5_expiry",
                  "license_class", "license_expiry"):
         st.session_state.pop(f"surucu_{alan}", None)
 
@@ -37,17 +36,14 @@ st.caption(f"{len(suruculer)} sürücü")
 
 if suruculer:
     for s in suruculer:
-        c1, c2, c3, c4, c5 = st.columns([2, 1.5, 1.5, 0.8, 0.8])
+        c1, c2, c3, c4 = st.columns([2.5, 1.5, 0.8, 0.8])
         c1.write(s.full_name + ("" if s.is_active else " (pasif)"))
         c2.write(f"SRC5: {s.src5_expiry or '—'}")
-        c3.write(f"ADR: {s.adr_certificate_expiry or '—'}")
-        if c4.button("Düzenle", key=f"surucu_duz_{s.id}"):
+        if c3.button("Düzenle", key=f"surucu_duz_{s.id}"):
             st.session_state["surucu_duzenle_id"] = s.id
             st.session_state["surucu_full_name"] = s.full_name
             st.session_state["surucu_tc_no"] = s.tc_no
             st.session_state["surucu_phone"] = s.phone
-            st.session_state["surucu_adr_certificate_no"] = s.adr_certificate_no
-            st.session_state["surucu_adr_certificate_expiry"] = s.adr_certificate_expiry
             st.session_state["surucu_src5_no"] = s.src5_no
             st.session_state["surucu_src5_expiry"] = s.src5_expiry
             st.session_state["surucu_license_class"] = s.license_class
@@ -55,7 +51,7 @@ if suruculer:
             st.session_state["surucu_form_ac"] = True
             st.rerun()
         durum_etiketi = "Pasifleştir" if s.is_active else "Aktifleştir"
-        if c5.button(durum_etiketi, key=f"surucu_durum_{s.id}"):
+        if c4.button(durum_etiketi, key=f"surucu_durum_{s.id}"):
             s.is_active = not s.is_active
             d.update_driver(s)
             onbellek_temizle()  # DÜZELTME: veri değişti, önbellek bayat kalmasın
@@ -100,20 +96,11 @@ if kaydet:
         # webcore/engines.py'deki mevzuat motorunda hâlâ duruyor ve
         # DEĞİŞTİRİLMEDİ — yalnızca bu form-seviyesi engel kaldırıldı.
         #
-        # DÜZELTME 2: "ADR Belge No" / "ADR Bitiş" alanları FORMDAN
-        # KALDIRILDI (Umut'un talebi — gereksiz yer kaplıyordu). Bu alanlar
-        # hâlâ veritabanında ve mevzuat motorunda (webcore/engines.py'deki
-        # sürücü ADR sertifikası kontrolü, sürücü listesindeki "ADR: ..."
-        # gösterimi, Kontrol Merkezi panelindeki sertifika durumu) canlı
-        # kullanılıyor — bu yüzden SESSİZCE KORUNUYOR: "Düzenle" tıklanınca
-        # değerleri zaten session_state'e yükleniyordu (aşağıdaki .get ile
-        # okunuyor), formda görünmeseler de düzenlemede SİLİNMİYORLAR. Yeni
-        # sürücüde boş kalır; ADR mevzuat kontrolü o zaman "sertifika yok"
-        # uyarısı verir (beklenen davranış — SRC5 ile aynı mantık).
-        adr_no = st.session_state.get("surucu_adr_certificate_no", "")
-        adr_tarih = st.session_state.get("surucu_adr_certificate_expiry", "")
+        # DÜZELTME 2 (Umut'un talebi, TAM KALDIRMA): "ADR Belge No" /
+        # "ADR Bitiş" alanları sürücüyle ilgisiz olduğu için Driver
+        # modelinden, veritabanından, mevzuat motorundan ve sürücü
+        # listesinden TAMAMEN kaldırıldı (yalnızca form alanı değil).
         surucu = Driver(id=duzenlenen_id, full_name=ad, tc_no=tc, phone=telefon,
-                        adr_certificate_no=adr_no, adr_certificate_expiry=adr_tarih,
                         src5_no=src5_no, src5_expiry=src5_tarih,
                         license_class=ehliyet_sinifi, license_expiry=ehliyet_tarih)
         if duzenlenen_id:

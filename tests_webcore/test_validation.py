@@ -98,26 +98,11 @@ class TestFlexibleDates:
     def test_garbage_returns_none(self, raw):
         assert ADREngine.parse_date_flexible(raw) is None
 
-    def test_future_turkish_format_is_valid_not_expired(self):
-        # 31/12/2027 GELECEKTE bir tarihtir: ne "okunamadı" ne "geçersiz"
-        d = Driver(full_name="X", adr_certificate_no="TR-1",
-                   adr_certificate_expiry="31/12/2027")
-        report = ADREngine.generate_adr_report(
-            [ShipmentItem(un_number="1203", proper_name="B", class_code="3",
-                         net_quantity=2000, transport_category="3")],
-            driver=d)
-        msgs = [m for _, m in report.errors]
-        assert not any("okunamadi" in m for m in msgs)
-        assert not any("sertifikasi gecersiz" in m for m in msgs)
-
-    def test_past_turkish_format_is_expired(self):
-        d = Driver(full_name="X", adr_certificate_no="TR-1",
-                   adr_certificate_expiry="15.03.2024")
-        report = ADREngine.generate_adr_report(
-            [ShipmentItem(un_number="1203", proper_name="B", class_code="3",
-                         net_quantity=2000, transport_category="3")],
-            driver=d)
-        assert any("sertifikasi gecersiz" in m for _, m in report.errors)
+    # NOT: "sürücü ADR sertifikası" (adr_certificate_no/expiry) tarih
+    # doğrulama testleri kaldırıldı — bu alanlar Driver modelinden
+    # TAMAMEN silindi (Umut'un talebi: sürücüyle ilgisiz alanlardı).
+    # parse_date_flexible'ın kendisi hâlâ SRC5 tarihleri için kullanılıyor
+    # ve yukarıdaki test_garbage_returns_none ile hâlâ kapsanıyor.
 
     def test_ambiguity_note_day_first(self):
         # 05.07.2026 gibi iki yorumlu tarihlerde GG.AA.YYYY (Türk yorumu) esas

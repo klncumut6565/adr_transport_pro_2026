@@ -118,36 +118,11 @@ class TestTunnelCodes:
         assert ADREngine.calculate_tunnel_restriction([]) == "E"
 
 
-# =========================================================================
-# BUG-D: Bozuk sertifika tarihi SESSİZCE geçilemez
-# =========================================================================
-class TestDriverCertificate:
-    def _driver(self, expiry):
-        return Driver(full_name="Test", adr_certificate_no="TR-1",
-                      adr_certificate_expiry=expiry)
-
-    def _has(self, msgs, needle):
-        return any(needle in m for _, m in msgs)
-
-    def test_expired_cert_error(self):
-        past = (datetime.now() - timedelta(days=10)).strftime("%Y-%m-%d")
-        report = ADREngine.generate_adr_report(
-            [item(qty=2000, tc="3")], driver=self._driver(past))
-        assert self._has(report.errors, "gecersiz")
-
-    def test_invalid_date_format_warns_not_silent(self):
-        # "31/13/2027" hicbir bicimde gecerli degil (13. ay yok) — sessiz
-        # gecilmemeli. Not: "31/12/2027" artik GECERLI Turk formatidir ve
-        # esnek ayristirici tarafindan dogru okunur (TestFlexibleDates).
-        report = ADREngine.generate_adr_report(
-            [item(qty=2000, tc="3")], driver=self._driver("31/13/2027"))
-        assert self._has(report.errors, "okunamadi") or self._has(report.warnings, "okunamadi")
-
-    def test_valid_future_cert_ok(self):
-        future = (datetime.now() + timedelta(days=365)).strftime("%Y-%m-%d")
-        report = ADREngine.generate_adr_report(
-            [item(qty=2000, tc="3")], driver=self._driver(future))
-        assert not self._has(report.errors, "sertifika")
+# NOT: "BUG-D: Bozuk sertifika tarihi" testleri (TestDriverCertificate)
+# kaldırıldı — sürücü ADR sertifikası alanları (adr_certificate_no/expiry)
+# Driver modelinden TAMAMEN silindi (Umut'un talebi: sürücüyle ilgisiz
+# alanlardı). Bozuk tarih koruması SRC5 için hâlâ geçerli ve
+# test_validation.py'deki TestFlexibleDates ile kapsanıyor.
 
 
 # =========================================================================

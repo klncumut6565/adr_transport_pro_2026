@@ -486,13 +486,15 @@ class TestKalemDuzenleme:
         assert al(t.session_state, "kalem_duzenle_i") is None
 
 
-class TestSurucuADRAlanlariKaldirildi:
-    """Düzeltme: 'ADR Belge No' / 'ADR Bitiş' alanları sürücü ekleme/
-    düzenleme formundan kaldırıldı (Umut'un talebi — gereksiz yer
-    kaplıyordu). KRİTİK: alanlar veritabanında/mevzuat motorunda hâlâ
-    kullanıldığı için, mevcut bir sürücü DÜZENLENİRKEN önceden girilmiş
-    ADR belge bilgisi SESSİZCE KORUNMALI (silinmemeli) — form alanı
-    yok diye veri kaybı olmamalı."""
+
+
+class TestSurucuADRAlanlariTamKaldirildi:
+    """Düzeltme (2. tur, tam kaldırma): Umut ilk turda yalnızca form
+    alanının kaldırılıp verinin korunmasını istemişti; netleştirdi —
+    bu alanlar sürücüyle hiç ilgisi olmayan, komple silinmesi gereken
+    alanlarmış. adr_certificate_no/adr_certificate_expiry artık Driver
+    modelinde YOK, formda YOK, mevzuat motorunda YOK, sürücü listesinde
+    YOK."""
 
     def test_form_adr_alanlari_gostermiyor(self):
         if not PG_DSN:
@@ -508,36 +510,28 @@ class TestSurucuADRAlanlariKaldirildi:
         assert not any("ADR Belge" in ti.label or "ADR Bitiş" in ti.label
                        for ti in t.text_input), "ADR alanları hâlâ formda"
 
-    def test_duzenlemede_mevcut_adr_verisi_silinmez(self):
+    def test_driver_modelinde_alan_yok(self):
+        from webcore.models import Driver
+        assert not hasattr(Driver(), "adr_certificate_no")
+        assert not hasattr(Driver(), "adr_certificate_expiry")
+
+    def test_surucu_ekle_ve_liste_calisir(self):
+        """Alan tamamen kalktıktan sonra ekleme/listeleme akışı sorunsuz
+        çalışmaya devam etmeli."""
         if not PG_DSN:
-            pytest.skip("ADR_PG_TEST_DSN_APP tanımlı değil")
-        from streamlit.testing.v1 import AppTest
+            pytest.skip("ADR_PG_TEST_DSN tanımlı değil")
         from webcore.pg import PgDatabaseManager
         from webcore.models import Driver
 
         db = PgDatabaseManager(PG_DSN)
-        db.execute_update("DELETE FROM drivers WHERE tc_no = '55555555551'")
-        mevcut_id = db.add_driver(Driver(
-            full_name="ADR VERİ KORUMA TESTİ", tc_no="55555555551",
-            adr_certificate_no="ADR-KORUNMALI", adr_certificate_expiry="2028-01-01"))
+        db.execute_update("DELETE FROM drivers WHERE tc_no = '55555555552'")
         try:
-            t = AppTest.from_file("sayfalar/suruculer.py", default_timeout=30)
-            t.secrets["db"] = {"dsn": PG_DSN}
-            t.session_state["user"] = {"username": "u", "tenant_id": 1,
-                                       "role": "admin", "full_name": "U"}
-            t.run()
-            duz = [b for b in t.button if b.key == f"surucu_duz_{mevcut_id}"][0]
-            duz.click().run()
-            tel = [ti for ti in t.text_input if ti.label == "Telefon"][0]
-            tel.set_value("0555 999 88 77")
-            [b for b in t.button if "Kaydet" in b.label][0].click().run()
-            assert not t.exception
-
-            guncel = db.get_driver(mevcut_id)
-            assert guncel.adr_certificate_no == "ADR-KORUNMALI", \
-                "form alanı kalktığı için ADR belge no silinmiş!"
-            assert guncel.adr_certificate_expiry == "2028-01-01", \
-                "form alanı kalktığı için ADR bitiş tarihi silinmiş!"
-            assert guncel.phone == "0555 999 88 77"
+            did = db.add_driver(Driver(full_name="TAM KALDIRMA TESTİ",
+                                       tc_no="55555555552", src5_no="SRC5-X"))
+            surucu = db.get_driver(did)
+            assert surucu.full_name == "TAM KALDIRMA TESTİ"
+            assert surucu.src5_no == "SRC5-X"
+            liste = db.get_drivers(active_only=False)
+            assert any(s.id == did for s in liste)
         finally:
-            db.execute_update("DELETE FROM drivers WHERE tc_no = '55555555551'")
+            db.execute_update("DELETE FROM drivers WHERE tc_no = '55555555552'")

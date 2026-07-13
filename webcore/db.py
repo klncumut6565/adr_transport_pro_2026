@@ -91,8 +91,6 @@ class DatabaseManager:
                 full_name TEXT NOT NULL,
                 tc_no TEXT UNIQUE,
                 phone TEXT,
-                adr_certificate_no TEXT,
-                adr_certificate_expiry TEXT,
                 src5_no TEXT,
                 src5_expiry TEXT,
                 license_class TEXT,
@@ -495,26 +493,26 @@ class DatabaseManager:
 
     def add_driver(self, driver: Driver) -> int:
         query = """
-            INSERT INTO drivers (full_name, tc_no, phone, adr_certificate_no,
-                adr_certificate_expiry, src5_no, src5_expiry, license_class, license_expiry)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO drivers (full_name, tc_no, phone,
+                src5_no, src5_expiry, license_class, license_expiry)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
         """
         return self.execute_insert(query, (
-            driver.full_name, driver.tc_no, driver.phone, driver.adr_certificate_no,
-            driver.adr_certificate_expiry, driver.src5_no, driver.src5_expiry,
+            driver.full_name, driver.tc_no, driver.phone,
+            driver.src5_no, driver.src5_expiry,
             driver.license_class, driver.license_expiry
         ))
 
     def update_driver(self, driver: Driver) -> int:
         query = """
-            UPDATE drivers SET full_name=?, tc_no=?, phone=?, adr_certificate_no=?,
-                adr_certificate_expiry=?, src5_no=?, src5_expiry=?, license_class=?,
+            UPDATE drivers SET full_name=?, tc_no=?, phone=?,
+                src5_no=?, src5_expiry=?, license_class=?,
                 license_expiry=?, is_active=?, updated_at=CURRENT_TIMESTAMP
             WHERE id=?
         """
         return self.execute_update(query, (
-            driver.full_name, driver.tc_no, driver.phone, driver.adr_certificate_no,
-            driver.adr_certificate_expiry, driver.src5_no, driver.src5_expiry,
+            driver.full_name, driver.tc_no, driver.phone,
+            driver.src5_no, driver.src5_expiry,
             driver.license_class, driver.license_expiry, int(driver.is_active), driver.id
         ))
 
@@ -537,8 +535,7 @@ class DatabaseManager:
     def _row_to_driver(self, row: sqlite3.Row) -> Driver:
         return Driver(
             id=row["id"], full_name=row["full_name"], tc_no=row["tc_no"] or "",
-            phone=row["phone"] or "", adr_certificate_no=row["adr_certificate_no"] or "",
-            adr_certificate_expiry=row["adr_certificate_expiry"] or "",
+            phone=row["phone"] or "",
             src5_no=row["src5_no"] or "", src5_expiry=row["src5_expiry"] or "",
             license_class=row["license_class"] or "",
             license_expiry=row["license_expiry"] or "",

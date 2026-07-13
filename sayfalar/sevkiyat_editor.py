@@ -519,7 +519,6 @@ with sag:
                 st.success(f"{etiket}: geçerli ({tarih.strftime('%d.%m.%Y')})")
 
         st.caption(_secili_driver.full_name)
-        _sertifika_satiri("ADR Belgesi", _secili_driver.adr_certificate_expiry)
         _sertifika_satiri("SRC5", _secili_driver.src5_expiry)
 
     st.divider()

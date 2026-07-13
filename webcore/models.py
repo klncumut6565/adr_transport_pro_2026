@@ -93,8 +93,9 @@ class Driver:
     full_name: str = ""
     tc_no: str = ""
     phone: str = ""
-    adr_certificate_no: str = ""
-    adr_certificate_expiry: str = ""
+    # DÜZELTME (Umut'un talebi): "ADR Belge No"/"ADR Bitiş" alanları
+    # sürücüyle ilgisiz olduğu için TAMAMEN kaldırıldı (adr_certificate_no,
+    # adr_certificate_expiry). Sürücüye özgü tek belge artık SRC5.
     src5_no: str = ""
     src5_expiry: str = ""
     license_class: str = ""

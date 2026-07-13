@@ -1572,27 +1572,13 @@ class ADREngine:
             ):
                 report.driver_adr_required = True
                 if driver:
-                    if not driver.adr_certificate_no:
-                        report.errors.append((WarningLevel.CRITICAL,
-                            "ADR sertifikali surucu zorunlu!"))
-                    else:
-                        expiry = cls.parse_date_flexible(driver.adr_certificate_expiry)
-                        if expiry is None:
-                            # [GUVENLIK] Bozuk tarih = kontrol yapilamiyor;
-                            # gecerli varsayilamaz, KRITIK hata uretilir.
-                            report.errors.append((WarningLevel.CRITICAL,
-                                f"Surucu ADR sertifika tarihi okunamadi: "
-                                f"'{driver.adr_certificate_expiry}' "
-                                f"(desteklenen: 2027-12-31, 31.12.2027, 31/12/2027)"))
-                        elif expiry < datetime.now():
-                            report.errors.append((WarningLevel.CRITICAL,
-                                f"Surucu ADR sertifikasi gecersiz! (Bitis: {driver.adr_certificate_expiry})"))
-                        elif expiry < datetime.now() + timedelta(days=30):
-                            report.warnings.append((WarningLevel.WARNING,
-                                f"Surucu ADR sertifikasi yakinda bitiyor: {driver.adr_certificate_expiry}"))
-                        else:
-                            report.info.append((WarningLevel.INFO,
-                                f"Surucu ADR sertifikasi gecerli: {driver.adr_certificate_expiry}"))
+                    # DÜZELTME (Umut'un talebi): "ADR Belge No/Bitiş" alanları
+                    # sürücüyle ilgisiz olduğu için Driver modelinden TAMAMEN
+                    # kaldırıldı — bu yüzden buradaki doğrulama da kaldırıldı.
+                    # driver_adr_required bayrağı (üstteki satır) hâlâ
+                    # hesaplanıyor ve evraktaki ZORUNLU/GEREKMEZ rozetini
+                    # besliyor; yalnızca artık var olmayan sertifika
+                    # alanlarına karşı YAPILAN DOĞRULAMA kaldırıldı.
                     if not driver.src5_no:
                         report.errors.append((WarningLevel.CRITICAL, "SRC5 belgesi zorunlu!"))
                     else:
@@ -1719,15 +1705,9 @@ class ADREngine:
                     result.warnings.append((WarningLevel.WARNING,
                         "SRC5 belgesi yakinda bitiyor!"))
 
-            # ADR sertifika kontrolü (turuncu plaka veya tehlikeli sınıflar için)
-            has_dangerous = any(
-                item.class_code in ["1", "2.3", "6.2", "7"] or 
-                (not item.is_lq and not item.is_eq)
-                for item in items
-            )
-            if has_dangerous and not driver.adr_certificate_no:
-                result.warnings.append((WarningLevel.WARNING, 
-                    "ADR sertifikasi onerilir (tehlikeli madde tasimasi)"))
+            # DÜZELTME (Umut'un talebi): "ADR sertifikası" alanı sürücüyle
+            # ilgisiz olduğu için Driver modelinden tamamen kaldırıldı;
+            # buna dayanan bu öneri kontrolü de kaldırıldı.
         else:
             result.errors.append((WarningLevel.ERROR, "Surucu secilmemis!"))
 
