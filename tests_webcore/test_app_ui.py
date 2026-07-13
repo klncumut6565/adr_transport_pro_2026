@@ -242,3 +242,25 @@ class TestUrunEkleCanliArama:
             "arama ya hiç sonuç vermiyor ya da filtrelemeden tüm tabloyu döndürüyor"
         assert all(s.un_number == "1993" for s in sonuclar), \
             "eşleşmeyen kayıtlar da dönüyor"
+
+
+class TestKimyasalVeritabaniCanliArama:
+    """Düzeltme: Kimyasal Veritabanı sayfası da Ürün Ekle ile aynı hataya
+    sahipti — varsayılan olarak tüm Tablo A'yı (ilk 200 satır) listeliyordu.
+    Umut'un tercihiyle aynı desene (streamlit-searchbox + detay kartı)
+    geçirildi."""
+
+    def test_baslangicta_tablo_gorunmuyor(self):
+        if not PG_DSN:
+            pytest.skip("ADR_PG_TEST_DSN_APP tanımlı değil")
+        from streamlit.testing.v1 import AppTest
+        t = AppTest.from_file("sayfalar/kimyasal_veritabani.py", default_timeout=40)
+        t.secrets["db"] = {"dsn": PG_DSN}
+        t.session_state["user"] = {"username": "u", "tenant_id": 1,
+                                   "role": "admin", "full_name": "U"}
+        t.run()
+        assert not t.exception
+        assert len(t.dataframe) == 0, \
+            "sayfa hâlâ varsayılan olarak bir tablo gösteriyor"
+        assert not any(ti.label.startswith("Ara (") for ti in t.text_input), \
+            "eski text_input tabanlı arama hâlâ duruyor"

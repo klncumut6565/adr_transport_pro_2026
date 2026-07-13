@@ -487,3 +487,21 @@ except bloğu hiç çalışmayacaktı, kanıtlanarak bulundu.)
 Doğrulama: sahte hata enjekte edilip yeniden bağlanma+tekrar deneme
 tetiklendiği kanıtlandı; gerçek uygulama hatalarının (ValueError vb.)
 yutulmadığı da ayrıca doğrulandı. Suite: 231 test.
+
+
+## Düzeltme: Kimyasal Veritabanı sayfası hâlâ eski tüm-liste davranışındaydı
+Umut'un doğru tespiti: bir önceki tur yalnızca Taşıma Evrakı → Ürün Ekle
+bölümünü düzeltmişti; Kimyasal Veritabanı sayfası aynı hataya (text_input
++ varsayılan olarak ilk 200 kayıt) hâlâ sahipti. Netleştirme sorusuna
+Umut'un cevabı: "Taşıma Evrakı'ndaki gibi — yazınca öneriler çıksın,
+seçince detayları göreyim" (tablo değil, tek-kayıt arama+detay).
+
+`sayfalar/kimyasal_veritabani.py` tamamen yeniden yazıldı: aynı
+streamlit-searchbox deseni (Enter yok, yalnızca eşleşenler), bir sonuç
+seçilince UN No, ad (TR/EN), sınıf, PG, tünel, TK, sınıflandırma kodu,
+tali tehlike, ayrışma grubu, LQ/EQ (izin durumuyla), özel hükümler —
+TÜM alanları gösteren bir detay kartı açılıyor.
+
+Doğrulama: sayfa başlangıçta hiçbir tablo göstermiyor (yalnızca "aramak
+için en az 2 karakter" mesajı), eski text_input tamamen kalktı, "1993"
+araması 6 doğru sonuç veriyor. Suite: 232 test.
