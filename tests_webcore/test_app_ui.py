@@ -57,7 +57,7 @@ class TestSevkiyatEditoruDogrudanGiris:
         # bilinçli olarak duzenlenecek_sevkiyat_id / editor_* anahtarları YOK
         t.run()
         assert not t.exception, f"doğrudan girişte hata: {[str(e.value) for e in t.exception]}"
-        assert any("Sevkiyat Editörü" in str(x.value) for x in t.title)
+        assert any("Taşıma Evrakı" in str(x.value) for x in t.title)
         assert t.session_state["editor_sevkiyat"]["id"] in (0, None)
 
 

@@ -44,6 +44,21 @@ DURUM_ETIKET = {
 }
 DURUM_DEGERLERI = [s.value for s in DocumentStatus]
 
+# Faz 4.5 sıklaştırma: Streamlit'in varsayılan blok/başlık/ayraç boşlukları
+# alan yiyor; sağdaki ADR Kontrol Merkezi paneli çok satır barındırdığı için
+# hem sol form hem sağ panelde satır aralarını daraltıyoruz.
+_KOMPAKT_CSS = """
+<style>
+div[data-testid="stVerticalBlock"] { gap: 0.45rem; }
+div[data-testid="stElementContainer"] { margin-bottom: 0 !important; }
+hr { margin: 0.35rem 0 !important; }
+h3, h4, h5 { margin-top: 0.2rem !important; margin-bottom: 0.2rem !important;
+     padding-top: 0 !important; padding-bottom: 0 !important; }
+div[data-testid="stMetric"] { padding: 0.25rem 0 !important; }
+div[data-testid="stExpander"] { margin-bottom: 0.3rem !important; }
+</style>
+"""
+
 
 def _bos_sevkiyat() -> dict:
     return {
@@ -90,7 +105,9 @@ _durumu_baslat()
 sev = st.session_state["editor_sevkiyat"]
 kalemler = st.session_state["editor_kalemler"]
 
-st.title("📝 Sevkiyat Editörü" + (f" — #{sev['id']}" if sev["id"] else " — Yeni"))
+st.markdown(_KOMPAKT_CSS, unsafe_allow_html=True)
+
+st.title("📝 Taşıma Evrakı" + (f" — #{sev['id']}" if sev["id"] else " — Yeni"))
 if st.button("← Sevkiyatlar listesine dön"):
     st.session_state["duzenlenecek_sevkiyat_id"] = None
     st.switch_page("sayfalar/sevkiyatlar.py")
@@ -123,7 +140,7 @@ sol, sag = st.columns([2.3, 1], gap="large")
 # SOL: Belge Bilgileri / Firma-Sürücü-Araç / Ürünler / Kayıt
 # =========================================================================
 with sol:
-    st.subheader("Evrak Bilgileri")
+    st.markdown("##### Evrak Bilgileri")
     c1, c2, c3 = st.columns(3)
     sev["document_no"] = c1.text_input("Evrak No", value=sev["document_no"])
     sev["document_date"] = c2.text_input("Tarih (GG.AA.YYYY)", value=sev["document_date"])
@@ -159,7 +176,7 @@ with sol:
     sev["notes"] = st.text_area("Notlar", value=sev["notes"])
 
     st.divider()
-    st.subheader("Taşınan Ürünler")
+    st.markdown("##### Taşınan Ürünler")
 
     with st.expander("➕ Ürün ekle", expanded=not kalemler):
         arama = st.text_input("UN numarası veya madde adı ile ara")
@@ -214,7 +231,7 @@ with sol:
         st.info("Henüz ürün eklenmedi.")
 
     st.divider()
-    st.subheader("Kayıt")
+    st.markdown("##### Kayıt")
 
     if st.button("💾 Kaydet", type="primary", use_container_width=True):
         if not sev["document_no"].strip():
