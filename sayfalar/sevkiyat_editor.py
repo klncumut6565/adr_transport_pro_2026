@@ -351,6 +351,40 @@ with sag:
 
     st.divider()
 
+    # ---- Canlı Evrak Önizleme ---------------------------------------------
+    st.markdown("**📄 Canlı Evrak Önizleme**")
+    if not items:
+        st.info("Önizleme ve PDF için en az bir ürün ekleyin ↓")
+    else:
+        try:
+            from webcore.transport_doc import build_transport_document_html
+            _onizleme_html = build_transport_document_html(
+                db=d, items=items,
+                document_no=sev["document_no"] or "(taslak)",
+                document_date_str=str(sev["document_date"]),
+                sender=_secili_sender, receiver=_secili_receiver,
+                driver=_secili_driver, vehicle=_secili_vehicle,
+                status_text=sev["status"], notes=sev["notes"] or "")
+            with st.expander("Önizlemeyi göster/gizle", expanded=False):
+                components.html(_onizleme_html, height=650, scrolling=True)
+
+            if st.button("📄 PDF oluştur ve indir", use_container_width=True):
+                try:
+                    from webcore.pdf import html_to_pdf_bytes
+                    st.session_state["tasima_evraki_pdf"] = html_to_pdf_bytes(_onizleme_html)
+                except ImportError:
+                    st.info("PDF için WeasyPrint gerekli (Cloud'da otomatik kurulur).")
+                except Exception as exc:
+                    st.error(f"PDF üretilemedi: {turkce_hata_metni(exc)}")
+
+            if st.session_state.get("tasima_evraki_pdf"):
+                st.download_button(
+                    "⬇️ İndir", data=st.session_state["tasima_evraki_pdf"],
+                    file_name=f"tasima_evraki_{sev['document_no'] or 'taslak'}.pdf",
+                    mime="application/pdf", use_container_width=True)
+        except Exception as exc:
+            st.warning(f"Önizleme oluşturulamadı: {turkce_hata_metni(exc)}")
+
     # ---- Durum Göstergeleri ----------------------------------------------
     st.markdown("**Durum Göstergeleri**")
     dg1, dg2 = st.columns(2)
@@ -405,36 +439,3 @@ with sag:
 
     st.divider()
 
-    # ---- Canlı Evrak Önizleme ---------------------------------------------
-    st.markdown("**📄 Canlı Evrak Önizleme**")
-    if not items:
-        st.caption("Önizleme için en az bir ürün ekleyin.")
-    else:
-        try:
-            from webcore.transport_doc import build_transport_document_html
-            _onizleme_html = build_transport_document_html(
-                db=d, items=items,
-                document_no=sev["document_no"] or "(taslak)",
-                document_date_str=str(sev["document_date"]),
-                sender=_secili_sender, receiver=_secili_receiver,
-                driver=_secili_driver, vehicle=_secili_vehicle,
-                status_text=sev["status"], notes=sev["notes"] or "")
-            with st.expander("Önizlemeyi göster/gizle", expanded=True):
-                components.html(_onizleme_html, height=650, scrolling=True)
-
-            if st.button("📄 PDF oluştur ve indir", use_container_width=True):
-                try:
-                    from webcore.pdf import html_to_pdf_bytes
-                    st.session_state["tasima_evraki_pdf"] = html_to_pdf_bytes(_onizleme_html)
-                except ImportError:
-                    st.info("PDF için WeasyPrint gerekli (Cloud'da otomatik kurulur).")
-                except Exception as exc:
-                    st.error(f"PDF üretilemedi: {turkce_hata_metni(exc)}")
-
-            if st.session_state.get("tasima_evraki_pdf"):
-                st.download_button(
-                    "⬇️ İndir", data=st.session_state["tasima_evraki_pdf"],
-                    file_name=f"tasima_evraki_{sev['document_no'] or 'taslak'}.pdf",
-                    mime="application/pdf", use_container_width=True)
-        except Exception as exc:
-            st.warning(f"Önizleme oluşturulamadı: {turkce_hata_metni(exc)}")
