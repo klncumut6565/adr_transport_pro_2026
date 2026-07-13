@@ -103,18 +103,28 @@ Uyku sorunu: GitHub Actions keep-alive (Faz 5'te .github/workflows/keepalive.yml
       olarak webcore'a taşındı; bu ikisi masaüstünde de silinip yalnız
       web tarafında kaldı (kod tekrarı olmasın diye). Faz 4 artık gerçekten
       %100 tamam.
-- [ ] Faz 4.5 — "ADR Kontrol Merkezi" canlı panel + canlı evrak önizleme
-      (Faz 4 biter bitmez, Faz 5'ten ÖNCE yapılacak — Umut'un önceliği).
-      Masaüstü ShipmentEditorPage'in sağındaki sabit panel: 1.1.3.6 puan
-      sayacı, durum göstergeleri, sürücü sertifika durumu, uyarı/hata
-      listesi — TÜMÜ her alan değişiminde (firma/sürücü/araç seçimi,
-      kalem ekleme/silme) ANINDA güncellenir; ayrıca alttaki "Canlı Evrak
-      Önizleme" ile taşıma evrakı ekranda gerçek zamanlı biçimlendirilmiş
-      olarak görünür (şu anki web'deki tek seferlik "Doğrula" butonu ve
-      indir-öncesi-önizlemesiz "Taşıma Evrakı PDF" butonunun yerini alacak).
-      Hedef: masaüstü deneyimiyle mümkün olduğunca kusursuz eşleşen,
-      reaktif bir sevkiyat editörü — bu iş bittiğinde Faz 4'ün güvenlik
-      ağı sayesinde motor tarafında regresyon riski olmadan yapılmış olacak.
+- [x] Faz 4.5 — "ADR Kontrol Merkezi" canlı panel + canlı evrak önizleme
+      TAMAMLANDI: sayfalar/sevkiyat_editor.py iki sütuna ayrıldı (sol:
+      form + ürün listesi + Kaydet; sağ: ADR Kontrol Merkezi). Eski
+      "🔍 Doğrula" butonu kaldırıldı — 1.1.3.6 puanı/plaka durumu, tünel
+      kısıtlama kodu, sürücü ADR/SRC5 sertifika durumu (renkli: geçerli/
+      30 gün içinde dolan/süresi dolmuş), doğrulama hata+uyarıları ve
+      7.5.2 uyumsuzluk kontrolü artık HİÇBİR butona bağlı değil — Streamlit
+      zaten her etkileşimde tüm scripti yeniden çalıştırdığı için bunlar
+      üst seviyede tutularak otomatik "canlı" hale geldi. Canlı Evrak
+      Önizleme: build_transport_document_html ile üretilen HTML,
+      st.components.v1.html üzerinden KAYDETMEDEN ÖNCE bile (taslak
+      haldeyken) sağ panelde gerçek zamanlı görünüyor; PDF üretimi
+      (WeasyPrint) ayrı bir "PDF oluştur ve indir" butonunda kaldı (her
+      tuş vuruşunda ağır render koşmasın diye — HTML önizleme ucuzdur,
+      PDF dönüşümü değildir). Doğrulama: tüm motor çağrıları (puan/tünel/
+      validate_shipment/check_compatibility/parse_date_flexible/
+      build_transport_document_html) gerçek verilerle ve boş ürün
+      listesiyle kuru-çalıştırıldı, çökme yok; tests_webcore/ 198 test
+      yeşil kaldı (regresyon yok); pyflakes temiz.
+      NOT: Başlığı masaüstündeki gibi "Taşıma Evrakı" yapmak ayrı bir
+      karar olarak bekliyor (mevcut AppTest "Sevkiyat Editörü" başlığını
+      doğruluyor, onay almadan değiştirilmedi).
 - [ ] Faz 5 — Streamlit Cloud dağıtım + secrets + keep-alive workflow
 - [x] Faz 6 — Veri migrasyonu + yedek: `araclar/migrate_desktop_to_pg.py`
       (ID'ler ve ilişkiler korunur, kolon kesişimiyle şema-toleranslı,
