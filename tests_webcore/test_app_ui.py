@@ -109,3 +109,32 @@ class TestRaporlarSayfasi:
         assert any("Raporlar" in str(x.value) for x in t.title)
         # iki indirme butonu üretilmiş olmalı (Excel + PDF baytları hazır)
         assert len(t.get("download_button")) >= 1
+
+
+class TestEskiKayitEvrakNoBos:
+    """Regresyon: document_no boş yazılmış eski kayıt açılınca Evrak No
+    alanı boş kalıyordu (Umut'un tespiti). Yükleme sırasında otomatik
+    numara üretilip gösterilir; DB'ye ancak Kaydet ile yazılır."""
+
+    def test_legacy_bos_document_no_doldurulur(self):
+        if not PG_DSN:
+            pytest.skip("ADR_PG_TEST_DSN_APP tanımlı değil")
+        from webcore.pg import PgDatabaseManager
+        from webcore.models import Shipment
+        from streamlit.testing.v1 import AppTest
+
+        db = PgDatabaseManager(PG_DSN)
+        sid = db.add_shipment(Shipment(document_no="", document_date="2026-07-01",
+                                       status="Taslak"))
+        try:
+            t = AppTest.from_file("sayfalar/sevkiyat_editor.py", default_timeout=40)
+            t.secrets["db"] = {"dsn": PG_DSN}
+            t.session_state["user"] = {"username": "umut", "tenant_id": 1,
+                                       "role": "admin", "full_name": "U"}
+            t.session_state["duzenlenecek_sevkiyat_id"] = sid
+            t.run()
+            assert not t.exception
+            evrak_no = [x.value for x in t.text_input if x.label == "Evrak No"][0]
+            assert evrak_no, "Evrak No hâlâ boş görünüyor"
+        finally:
+            db.execute_update("DELETE FROM shipments WHERE id=?", (sid,))

@@ -93,7 +93,13 @@ def _yukle(shipment_id: int):
         st.session_state["editor_kalemler"] = []
         return
     st.session_state["editor_sevkiyat"] = {
-        "id": s.id, "document_no": s.document_no,
+        "id": s.id,
+        # DÜZELTME: bazı eski kayıtlarda document_no boş yazılmıştı (Evrak No
+        # otomatik doldurma özelliğinden önce oluşturulmuş sevkiyatlar).
+        # Boş gelirse ekranda sessizce boş bırakmak yerine yeni bir numara
+        # üretiyoruz; kayıt DB'ye ancak kullanıcı "Kaydet"e basınca yazılır,
+        # yani salt görüntüleme/yükleme sırasında veri değişmez.
+        "document_no": s.document_no or ADREngine.format_document_number(),
         "document_date": s.document_date, "status": s.status,
         "sender_id": s.sender_id, "receiver_id": s.receiver_id,
         "carrier_id": s.carrier_id, "driver_id": s.driver_id,
