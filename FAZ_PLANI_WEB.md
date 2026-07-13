@@ -680,3 +680,25 @@ Tablo A alanlarıyla tutarsız kalması riskini önler.
 Doğrulama: düzenle → alanları değiştir → kaydet → kalem yerinde
 güncellendi + UN numarası değişmedi + düzenleme modu kapandı; ayrıca
 Vazgeç'in hiçbir değişiklik uygulamadığı ayrı test edildi. Suite: 246 test.
+
+
+## Düzeltme: 'ADR Belge No' / 'ADR Bitiş' alanları sürücü formundan kaldırıldı
+Umut'un talebi: sürücü ekleme/düzenleme formundaki bu iki hücre gereksiz
+yer kaplıyordu, kaldırıldı. Önemli teknik ayrıntı: bu alanlar veritabanında
+ve mevzuat motorunda (webcore/engines.py'deki sürücü ADR sertifikası
+kontrolü, sürücü listesindeki "ADR: ..." gösterimi, Taşıma Evrakı Kontrol
+Merkezi panelindeki sertifika durumu) HÂLÂ CANLI KULLANILIYOR — bu yüzden
+yalnızca form GİRİŞ alanları kaldırıldı, veri modeli/iş mantığı
+DEĞİŞMEDİ.
+
+KRİTİK KORUMA: mevcut bir sürücü DÜZENLENİRKEN önceden girilmiş ADR
+belge bilgisinin form alanı yok diye SESSİZCE SİLİNMEMESİ sağlandı —
+değerler "Düzenle" tıklanınca zaten session_state'e yükleniyordu, kayıt
+sırasında görünmeyen alanlardan değil doğrudan session_state'ten okunup
+korunuyor. Yeni sürücüde alan boş kalır (SRC5 ile aynı mantık — mevzuat
+kontrolü o zaman "sertifika yok" uyarısı verir, beklenen davranış).
+
+Doğrulama: formda ADR alanlarının artık görünmediği + önceden ADR belgesi
+girilmiş bir sürücü düzenlenip başka bir alan (telefon) değiştirildiğinde
+ADR belge no/bitişinin VERİ TABANINDA DEĞİŞMEDEN kaldığı (veri kaybı
+kanıtlı şekilde yok) test edildi. Suite: 248 test.

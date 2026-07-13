@@ -77,10 +77,6 @@ with st.form("surucu_formu"):
 
     telefon = st.text_input("Telefon", value=st.session_state.get("surucu_phone", ""))
 
-    c3, c4 = st.columns(2)
-    adr_no = c3.text_input("ADR Belge No", value=st.session_state.get("surucu_adr_certificate_no", ""))
-    adr_tarih = c4.text_input("ADR Bitiş (GG.AA.YYYY)", value=st.session_state.get("surucu_adr_certificate_expiry", ""))
-
     c5, c6 = st.columns(2)
     src5_no = c5.text_input("SRC5 Belge No", value=st.session_state.get("surucu_src5_no", ""))
     src5_tarih = c6.text_input("SRC5 Bitiş (GG.AA.YYYY)", value=st.session_state.get("surucu_src5_expiry", ""))
@@ -103,6 +99,19 @@ if kaydet:
         # ADR uyumluluk kontrolü (sevkiyat sırasında SRC5 gerekliliği)
         # webcore/engines.py'deki mevzuat motorunda hâlâ duruyor ve
         # DEĞİŞTİRİLMEDİ — yalnızca bu form-seviyesi engel kaldırıldı.
+        #
+        # DÜZELTME 2: "ADR Belge No" / "ADR Bitiş" alanları FORMDAN
+        # KALDIRILDI (Umut'un talebi — gereksiz yer kaplıyordu). Bu alanlar
+        # hâlâ veritabanında ve mevzuat motorunda (webcore/engines.py'deki
+        # sürücü ADR sertifikası kontrolü, sürücü listesindeki "ADR: ..."
+        # gösterimi, Kontrol Merkezi panelindeki sertifika durumu) canlı
+        # kullanılıyor — bu yüzden SESSİZCE KORUNUYOR: "Düzenle" tıklanınca
+        # değerleri zaten session_state'e yükleniyordu (aşağıdaki .get ile
+        # okunuyor), formda görünmeseler de düzenlemede SİLİNMİYORLAR. Yeni
+        # sürücüde boş kalır; ADR mevzuat kontrolü o zaman "sertifika yok"
+        # uyarısı verir (beklenen davranış — SRC5 ile aynı mantık).
+        adr_no = st.session_state.get("surucu_adr_certificate_no", "")
+        adr_tarih = st.session_state.get("surucu_adr_certificate_expiry", "")
         surucu = Driver(id=duzenlenen_id, full_name=ad, tc_no=tc, phone=telefon,
                         adr_certificate_no=adr_no, adr_certificate_expiry=adr_tarih,
                         src5_no=src5_no, src5_expiry=src5_tarih,
