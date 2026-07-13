@@ -443,3 +443,56 @@ class TestTabloAKuresel:
         assert gB == ["FIRMA-B"], f"izolasyon bozuk: {gB}"
         dbA.execute_update("DELETE FROM company_products")
         dbB.execute_update("DELETE FROM company_products")
+
+
+class TestSetLocalKiraciBaglami:
+    """Kritik düzeltme: oturum-ölçekli set_config() yerine her çağrıda
+    transaction-ölçekli SET LOCAL kullanılıyor — Supabase Transaction
+    pooler'ında (her sorgu farklı arka-uca gidebilir) doğruluğu garanti
+    eder, Session pooler'a bağımlı kalmaz. Ayrıca db.py'de doğrudan
+    conn.execute() kullanan iki metod (get_expiring_documents,
+    get_class_breakdown) self.execute()'a taşındı — eskiden Pg'de kiracı
+    sarmalayıcısını atlayıp her zaman kiracı 1'e düşüyorlardı."""
+
+    def test_dinamik_kiraci_gecisi_ayni_baglanti(self):
+        if not PG_DSN:
+            pytest.skip("ADR_PG_TEST_DSN tanımlı değil")
+        from webcore.pg import PgDatabaseManager
+        from webcore import Company
+
+        db = PgDatabaseManager(PG_DSN, tenant_id=555)
+        db.execute_update("DELETE FROM companies")
+        db.add_company(Company(type="sender", name="K555"))
+
+        db.set_tenant(556)
+        db.execute_update("DELETE FROM companies")
+        db.add_company(Company(type="sender", name="K556"))
+
+        db.set_tenant(555)
+        g555 = [c.name for c in db.get_companies()]
+        db.set_tenant(556)
+        g556 = [c.name for c in db.get_companies()]
+        assert g555 == ["K555"] and g556 == ["K556"], \
+            f"AYNI PgDatabaseManager nesnesi kiracı geçişinde karışıyor: {g555} / {g556}"
+        db.execute_update("DELETE FROM companies")
+
+    def test_get_expiring_documents_kiraciya_izole(self):
+        if not PG_DSN:
+            pytest.skip("ADR_PG_TEST_DSN tanımlı değil")
+        import datetime as dt
+        from webcore.pg import PgDatabaseManager
+        from webcore import Driver
+
+        db1 = PgDatabaseManager(PG_DSN, tenant_id=601)
+        db2 = PgDatabaseManager(PG_DSN, tenant_id=602)
+        db1.execute_update("DELETE FROM drivers")
+        db2.execute_update("DELETE FROM drivers")
+        yakin = (dt.date.today() + dt.timedelta(days=10)).isoformat()
+        db1.add_driver(Driver(full_name="İZOLE SÜRÜCÜ", tc_no="1",
+                              src5_no="X", src5_expiry=yakin, is_active=True))
+
+        exp1 = db1.get_expiring_documents(30)
+        exp2 = db2.get_expiring_documents(30)
+        assert exp1["drivers"] and not exp2["drivers"], \
+            "get_expiring_documents kiracı sarmalayıcısını atlıyor"
+        db1.execute_update("DELETE FROM drivers")

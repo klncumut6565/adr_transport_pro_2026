@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import re
 import tempfile
+from contextlib import contextmanager
 from pathlib import Path
 from typing import List, Optional
 
@@ -215,39 +216,49 @@ class PgDatabaseManager(DatabaseManager):
             self.connection = psycopg.connect(
                 self.dsn, row_factory=dict_row,
                 cursor_factory=TranslatingCursor, autocommit=True,
-                # KRİTİK: Supabase'in Transaction pooler'ı (PgBouncer,
-                # transaction modu) her sorguyu farklı bir arka-uç Postgres
-                # bağlantısına yönlendirebilir. psycopg varsayılan olarak
-                # aynı sorguyu birkaç kez gördükten sonra sunucu-taraflı
-                # PREPARE'e geçer (otomatik adlandırılmış hazırlanmış
-                # ifade); PgBouncer transaction modunda bu isim başka bir
-                # arka-uçta ÇAKIŞABİLİR (DuplicatePreparedStatement).
-                # prepare_threshold=None bunu tamamen kapatır — Supabase'in
-                # kendi psycopg dokümantasyonunun önerdiği ayar budur.
+                # Sunucu-taraflı otomatik PREPARE kapalı: PgBouncer/Supavisor
+                # transaction modunda aynı isimli hazırlanmış ifade başka
+                # bir arka-uçta çakışabiliyordu (DuplicatePreparedStatement).
                 prepare_threshold=None)
-            # Kiracı kimliği oturum değişkenine yazılır; RLS politikaları
-            # tüm sorguları buna göre süzer. İş metotları hiç değişmez.
-            with self.connection.cursor() as cur:
-                cur.execute("SELECT set_config('app.tenant_id', %s, false)",
-                            (str(self.tenant_id),))
         return self.connection
 
     def set_tenant(self, tenant_id: int):
         """Aktif kiracıyı değiştirir (giriş sonrası çağrılır)."""
         self.tenant_id = tenant_id
-        if self.connection and not self.connection.closed:
-            with self.connection.cursor() as cur:
-                cur.execute("SELECT set_config('app.tenant_id', %s, false)",
-                            (str(tenant_id),))
+
+    @contextmanager
+    def _tenanted_cursor(self, conn):
+        """KRİTİK TASARIM NOTU: kiracı kimliğini bağlantı açılışında BİR KEZ
+        `set_config(..., false)` (oturum-ölçekli) ile yazmak, Supabase'in
+        Transaction pooler'ında (Supavisor/PgBouncer, port 6543) ÇALIŞMAZ —
+        o modda her sorgu farklı bir arka-uç Postgres bağlantısına gidebilir
+        ve oturum durumu istemciler arasında korunmaz (Supabase'in kendi
+        dokümantasyonu: "each transaction ends up in a different
+        connection"). Sessizce yanlış kiracıya (varsayılan=1) düşme riski
+        vardı — bu, Streamlit Cloud'da Tablo A'nın ısrarla "boş" görünmesinin
+        de gerçek nedeniydi.
+
+        Çözüm: kiracıyı HER ÇAĞRIDA, gerçek sorguyla AYNI transaction içinde
+        `SET LOCAL` (transaction-ölçekli) ile yazıyoruz. PgBouncer'ın
+        transaction modu sözleşmesi gereği bir transaction'ın tamamı TEK bir
+        arka-uçta yürür — yani SET LOCAL ile onu izleyen sorgu HER ZAMAN aynı
+        bağlantıda olur, pooler modundan bağımsız olarak doğru çalışır.
+        """
+        with conn.transaction():
+            with conn.cursor() as cur:
+                # SET LOCAL bağlı parametre (%s) kabul etmez — Postgres
+                # kısıtı. int() dönüşümü enjeksiyona karşı yeterli güvence.
+                cur.execute(f"SET LOCAL app.tenant_id = {int(self.tenant_id)}")
+                yield cur
 
     # ── geçitler (çeviri cursor'da; burada yalnız dönüş farkları) ────
     def execute(self, query: str, params: tuple = ()) -> List[dict]:
-        with self._get_conn().cursor() as cur:
+        with self._tenanted_cursor(self._get_conn()) as cur:
             cur.execute(query, params)
             return cur.fetchall()
 
     def execute_one(self, query: str, params: tuple = ()) -> Optional[dict]:
-        with self._get_conn().cursor() as cur:
+        with self._tenanted_cursor(self._get_conn()) as cur:
             cur.execute(query, params)
             return cur.fetchone()
 
@@ -255,7 +266,7 @@ class PgDatabaseManager(DatabaseManager):
         q = query.rstrip().rstrip(";")
         if re.match(r"^\s*INSERT\b", q, re.IGNORECASE) and "RETURNING" not in q.upper():
             q += " RETURNING id"
-        with self._get_conn().cursor() as cur:
+        with self._tenanted_cursor(self._get_conn()) as cur:
             cur.execute(q, params)
             if cur.description:
                 row = cur.fetchone()
@@ -264,7 +275,7 @@ class PgDatabaseManager(DatabaseManager):
         return 0
 
     def execute_update(self, query: str, params: tuple = ()) -> int:
-        with self._get_conn().cursor() as cur:
+        with self._tenanted_cursor(self._get_conn()) as cur:
             cur.execute(query, params)
             return cur.rowcount
 

@@ -269,3 +269,35 @@ kod tarafında başka hiçbir şey değişmez.
 Suite: 220 test (mevcut testler yerel Postgres'e karşı zaten session-benzeri
 tek bağlantı kullanıyordu, bu sınıf hatayı yerelde yakalayamazdık —
 yalnız gerçek Supabase pooler davranışında ortaya çıkar).
+
+
+## Nihai düzeltme: SET LOCAL — pooler moduna bağımlılık tamamen kaldırıldı
+Önceki turda Session pooler'a (port 5432) geçiş ÖNERİLMİŞTİ ama bu dışarıdan,
+doğrulayamadığım bir ayara bağımlıydı ve Umut "hâlâ gözükmüyor" dedi. Kod
+tarafında kalıcı, pooler-bağımsız çözüm uygulandı:
+
+- Bağlantı açılışındaki BİR KEZLİK `set_config(..., false)` (oturum-ölçekli)
+  TAMAMEN KALDIRILDI.
+- Yerine: `_tenanted_cursor()` — her `execute/execute_one/execute_insert/
+  execute_update` çağrısı artık kendi transaction'ını açıyor, İÇİNDE önce
+  `SET LOCAL app.tenant_id = <int>` sonra gerçek sorgu çalışıyor. PgBouncer/
+  Supavisor'ın transaction modu sözleşmesi gereği bir transaction'ın TAMAMI
+  tek arka-uçta yürür — yani bu ikili HER ZAMAN aynı bağlantıda, pooler
+  modundan (Transaction/Session) tamamen bağımsız olarak doğru çalışır.
+  Artık Supabase Secrets'ta port 6543 mi 5432 mi olduğu ÖNEMSİZ.
+- Ek bulgu (aynı denetimde): `db.py`'de get_expiring_documents ve
+  get_class_breakdown doğrudan `conn.execute()` kullanıyordu — bu, yeni
+  (ve eski) kiracı sarmalayıcısını TAMAMEN ATLIYORDU. Pg altında bu iki
+  fonksiyon her zaman kiracı 1'e düşüyordu (tek kiracı olduğu için şu ana
+  kadar görünmedi). self.execute()'a taşındı, artık kiracıya doğru izole.
+
+Doğrulama: aynı PgDatabaseManager nesnesi üzerinde set_tenant ile ileri-geri
+geçiş, get_expiring_documents kiracı izolasyonu, çapraz yazma engeli — hepsi
+regresyon testleriyle kilitli. Suite: 222 test.
+
+SONUÇ: Tablo A'nın "hâlâ gözükmemesi" muhtemelen bu kiracı-bağlamı
+güvenilmezliğinin dolaylı bir belirtisiydi (chemicals artık global olduğu
+için doğrudan value değil ama init_database() sırasındaki DuplicatePreparedStatement
+çökmesi TÜM bağlantı kurulumunu, dolayısıyla otomatik tohumlamayı da
+engelliyordu). Bu commit'ten sonra Cloud'da reboot + normal kullanım
+yeterli olmalı; Session pooler'a geçiş artık gerekli değil ama zararı da yok.

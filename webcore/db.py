@@ -1032,19 +1032,23 @@ class DatabaseManager:
         from datetime import date, timedelta
         today = date.today().isoformat()
         limit = (date.today() + timedelta(days=days)).isoformat()
-        conn  = self._get_conn()
-        drivers = conn.execute("""
+        # DÜZELTME: doğrudan conn.execute() kullanmak Pg alt sınıfındaki
+        # kiracı sarmalayıcısını (SET LOCAL app.tenant_id) atlıyordu —
+        # drivers/vehicles kiracıya özel tablolar olduğu için bu, RLS'in
+        # her zaman varsayılan kiracıya (1) düşmesi anlamına geliyordu.
+        # self.execute() üzerinden gitmek her iki motor için de doğru.
+        drivers = self.execute("""
             SELECT full_name, src5_no, src5_expiry,
                    CAST(julianday(src5_expiry) - julianday('now') AS INTEGER) AS kalan
             FROM drivers WHERE is_active=1 AND src5_expiry BETWEEN ? AND ?
-            ORDER BY src5_expiry""", (today, limit)).fetchall()
-        vehicles = conn.execute("""
+            ORDER BY src5_expiry""", (today, limit))
+        vehicles = self.execute("""
             SELECT plate, adr_compliance_expiry, inspection_expiry,
                    CAST(julianday(adr_compliance_expiry) - julianday('now') AS INTEGER) AS adr_kalan,
                    CAST(julianday(inspection_expiry)     - julianday('now') AS INTEGER) AS mua_kalan
             FROM vehicles WHERE is_active=1
               AND (adr_compliance_expiry BETWEEN ? AND ? OR inspection_expiry BETWEEN ? AND ?)
-            ORDER BY adr_compliance_expiry""", (today, limit, today, limit)).fetchall()
+            ORDER BY adr_compliance_expiry""", (today, limit, today, limit))
         return {"drivers":[dict(r) for r in drivers],"vehicles":[dict(r) for r in vehicles]}
 
     def get_class_breakdown(self, year=None) -> list:
@@ -1054,7 +1058,8 @@ class DatabaseManager:
         p=[]
         if year: sql+=" WHERE strftime('%Y',s.document_date)=?"; p.append(str(year))
         sql+=" GROUP BY si.class_code ORDER BY toplam_net_kg DESC"
-        return [dict(r) for r in self._get_conn().execute(sql,p).fetchall()]
+        # (aynı düzeltme: self.execute() — bkz. get_expiring_documents notu)
+        return [dict(r) for r in self.execute(sql, p)]
 
     def get_top_senders(self, limit=10, year=None) -> list:
         sql = "SELECT c.name, COUNT(s.id) AS sevkiyat_sayisi FROM shipments s JOIN companies c ON c.id=s.sender_id"
