@@ -60,9 +60,24 @@ div[data-testid="stExpander"] { margin-bottom: 0.3rem !important; }
 """
 
 
+def _gg_aa_yyyy_to_date(metin: str):
+    """document_date metnini (GG.AA.YYYY ya da ADREngine'in kabul ettiği
+    diğer biçimler) st.date_input için bir date nesnesine çevirir.
+    Ayrıştırılamazsa (boş/bozuk) bugüne düşer — widget hiçbir zaman
+    None ile çağrılmaz."""
+    from datetime import date
+    d = ADREngine.parse_date_flexible(metin)
+    return d.date() if d else date.today()
+
+
 def _bos_sevkiyat() -> dict:
+    # Masaüstü _init_new_document ile aynı: Evrak No otomatik üretilir
+    # (ADR-YYYYAAGG-SSDDSS), Tarih bugüne varsayılan (kullanıcı isterse
+    # geçmişe çevirebilir — st.date_input zaten serbest, min/max yok).
+    from datetime import date
     return {
-        "id": None, "document_no": "", "document_date": "",
+        "id": None, "document_no": ADREngine.format_document_number(),
+        "document_date": date.today().strftime("%d.%m.%Y"),
         "status": "Taslak", "sender_id": 0, "receiver_id": 0,
         "carrier_id": 0, "driver_id": 0, "vehicle_id": 0,
         "exemption_type": "Yok", "notes": "",
@@ -143,7 +158,9 @@ with sol:
     st.markdown("##### Evrak Bilgileri")
     c1, c2, c3 = st.columns(3)
     sev["document_no"] = c1.text_input("Evrak No", value=sev["document_no"])
-    sev["document_date"] = c2.text_input("Tarih (GG.AA.YYYY)", value=sev["document_date"])
+    sev["document_date"] = c2.date_input(
+        "Tarih", value=_gg_aa_yyyy_to_date(sev["document_date"]),
+        format="DD.MM.YYYY").strftime("%d.%m.%Y")
     sev["status"] = c3.selectbox(
         "Durum", DURUM_DEGERLERI,
         index=DURUM_DEGERLERI.index(sev["status"]) if sev["status"] in DURUM_DEGERLERI else 0,
