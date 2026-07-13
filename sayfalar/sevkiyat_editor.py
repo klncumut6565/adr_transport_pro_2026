@@ -202,6 +202,26 @@ with sol:
     st.markdown("##### Taşınan Ürünler")
 
     with st.expander("➕ Ürün ekle", expanded=not kalemler):
+        if db().count_chemicals() == 0:
+            bilgi = getattr(db(), "seed_bilgisi", {})
+            if bilgi.get("denendi") and not bilgi.get("basarili"):
+                st.error("ADR Tablo A yüklü değil — otomatik yükleme "
+                         f"başarısız oldu: {bilgi.get('hata', '?')}")
+            else:
+                st.warning("ADR Tablo A henüz yüklenmemiş, arama sonuç "
+                          "vermeyecektir.")
+            if st.button("🔄 Tablo A'yı şimdi yükle", key="tabloa_hizli_yukle"):
+                import os
+                if os.path.exists("ADR_A_TABLOSU.xlsx"):
+                    try:
+                        with st.spinner("Yükleniyor..."):
+                            n = db().import_table_a_excel("ADR_A_TABLOSU.xlsx")
+                        st.success(f"{n} kayıt yüklendi.")
+                        st.rerun()
+                    except Exception as exc:
+                        st.error(f"Yükleme başarısız: {turkce_hata_metni(exc)}")
+                else:
+                    st.error("ADR_A_TABLOSU.xlsx dosyası bulunamadı.")
         arama = st.text_input("UN numarası veya madde adı ile ara")
         bulunanlar = db().search_chemicals(arama, limit=15) if arama else []
         if bulunanlar:

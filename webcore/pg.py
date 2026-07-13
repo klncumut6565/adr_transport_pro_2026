@@ -206,6 +206,7 @@ class PgDatabaseManager(DatabaseManager):
         self.tenant_id = tenant_id
         self.db_path = dsn          # üst sınıfla alan uyumu
         self.connection = None
+        self.seed_bilgisi = {"denendi": False}
         self.init_database()
 
     # ── bağlantı ─────────────────────────────────────────────────────
@@ -356,24 +357,26 @@ class PgDatabaseManager(DatabaseManager):
         """ADR Tablo A boşsa, repoyla birlikte gelen dosyadan otomatik
         yükler (Umut'un niyeti: Tablo A gömülü gelsin, elle yüklenmesin;
         elle yükleme yalnız FİRMAYA özel envanter için — Ayarlar sayfası).
-        Dosya bulunamazsa veya tablo zaten doluysa sessizce geçilir; bu,
-        her uygulama açılışında (st.cache_resource sayesinde pratikte tek
-        seferlik) çalışan ucuz bir kontroldür."""
+        Sonuç `self.seed_bilgisi` üzerinden UI'ya açık: arka planda sessizce
+        loglamak yerine, sayfalar (Kimyasal Veritabanı / Ürün Ekle) bu
+        alanı okuyup kullanıcıya görünür bir uyarı/buton sunabilir —
+        Cloud'da dosya bulunamama veya izin hatası gibi durumlar artık
+        "neden boş göründüğü belirsiz" kalmaz."""
+        self.seed_bilgisi: dict = {"denendi": False}
         if self.count_chemicals() > 0:
             return
+        self.seed_bilgisi["denendi"] = True
         for aday in (Path(__file__).resolve().parent.parent / "ADR_A_TABLOSU.xlsx",
                     Path("ADR_A_TABLOSU.xlsx")):
             if aday.exists():
                 try:
                     n = self.import_table_a_excel(str(aday))
-                    import logging
-                    logging.getLogger(__name__).info(
-                        "ADR Tablo A otomatik yüklendi: %d kayıt", n)
-                except Exception as exc:  # tohumlama asla açılışı engellemez
-                    import logging
-                    logging.getLogger(__name__).warning(
-                        "ADR Tablo A otomatik yükleme başarısız: %s", exc)
+                    self.seed_bilgisi.update(basarili=True, kayit=n, yol=str(aday))
+                except Exception as exc:
+                    self.seed_bilgisi.update(basarili=False, hata=str(exc), yol=str(aday))
                 return
+        self.seed_bilgisi.update(basarili=False, hata="ADR_A_TABLOSU.xlsx bulunamadı "
+                                 f"(aranan: {Path(__file__).resolve().parent.parent})")
 
     # ── Pg'de anlamsız kalan sqlite işlevleri ────────────────────────
     def get_top_senders(self, limit=10, year=None) -> list:

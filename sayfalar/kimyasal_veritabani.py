@@ -28,5 +28,32 @@ if kayitlar:
          for k in kayitlar],
         use_container_width=True, hide_index=True)
 else:
-    st.info("Kayıt bulunamadı. ADR Tablo A henüz yüklenmediyse, yönetici "
-            "olarak Ayarlar'dan içe aktarabilirsiniz (Faz 6'da).")
+    if d.count_chemicals() > 0:
+        st.info("Bu süzgeçle eşleşen kayıt yok.")
+    else:
+        # Tablo A tamamen boş: otomatik-tohumlamanın SESSİZCE başarısız
+        # olup olmadığını göster (dosya bulunamadı / DB izin hatası vb.) —
+        # arka planda yalnızca log'a yazmak, Cloud'da "neden boş?"
+        # sorusunu yanıtsız bırakıyordu.
+        bilgi = getattr(d, "seed_bilgisi", {})
+        if bilgi.get("denendi") and not bilgi.get("basarili"):
+            st.error("Tablo A otomatik yüklemesi başarısız oldu: "
+                     f"{bilgi.get('hata', 'bilinmeyen hata')}")
+            st.caption(f"Aranan dosya: {bilgi.get('yol', '—')}")
+        else:
+            st.info("Kayıt bulunamadı.")
+
+        if st.button("🔄 Tablo A'yı şimdi yükle (embedded dosyadan)"):
+            import os
+            yol = "ADR_A_TABLOSU.xlsx"
+            if not os.path.exists(yol):
+                st.error(f"'{yol}' bulunamadı (çalışma dizini: {os.getcwd()}).")
+            else:
+                try:
+                    with st.spinner("Yükleniyor..."):
+                        n = d.import_table_a_excel(yol)
+                    st.success(f"{n} kayıt yüklendi. Sayfayı yenileyin.")
+                    st.rerun()
+                except Exception as exc:
+                    from webcore.errors import turkce_hata_metni
+                    st.error(f"Yükleme başarısız: {turkce_hata_metni(exc)}")

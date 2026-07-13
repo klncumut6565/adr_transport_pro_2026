@@ -138,3 +138,28 @@ class TestEskiKayitEvrakNoBos:
             assert evrak_no, "Evrak No hâlâ boş görünüyor"
         finally:
             db.execute_update("DELETE FROM shipments WHERE id=?", (sid,))
+
+
+class TestTabloABosDurumGorunurlugu:
+    """Düzeltme: Tablo A boşken sessizce 'kayıt yok' demek yerine sebep +
+    'şimdi yükle' butonu gösterilir (Cloud'da teşhisi kolaylaştırır)."""
+
+    def test_kimyasal_veritabani_bos_uyari_ve_buton(self):
+        if not PG_DSN:
+            pytest.skip("ADR_PG_TEST_DSN_APP tanımlı değil")
+        from webcore.pg import PgDatabaseManager
+        from streamlit.testing.v1 import AppTest
+
+        db = PgDatabaseManager(PG_DSN)
+        db.execute_update("DELETE FROM chemicals")
+        try:
+            t = AppTest.from_file("sayfalar/kimyasal_veritabani.py", default_timeout=30)
+            t.secrets["db"] = {"dsn": PG_DSN}
+            t.session_state["user"] = {"username": "u", "tenant_id": 1,
+                                       "role": "admin", "full_name": "U"}
+            t.run()
+            assert not t.exception
+            assert any(b.label.startswith("🔄") for b in t.button)
+        finally:
+            n = db.import_table_a_excel("ADR_A_TABLOSU.xlsx")
+            assert n > 0

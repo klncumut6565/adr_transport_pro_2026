@@ -196,3 +196,28 @@ chemicals + tenant_id'siz company_products durumundan başlanıp yeni koda
 geçildiğinde hatasız kendini onardı. Regresyon testleri:
 TestTabloAKuresel (paylaşım + otomatik tohumlama), company_products
 izolasyon testi (aynı ürün bilgisiyle çakışma senaryosu). Suite: 219 test.
+
+
+## Görünürlük iyileştirmesi (Umut: "hala kullanılamıyor" sonrası)
+Önceki turdaki mimari düzeltme (chemicals global + otomatik tohumlama)
+doğruydu ama tohumlama hatası yalnızca Python logger'a yazılıyordu —
+Streamlit arayüzünde görünmüyordu, yani Cloud'da bir şey ters giderse
+kullanıcı sebepsiz bir boşlukla baş başa kalıyordu. Eklendi:
+- PgDatabaseManager.seed_bilgisi: tohumlama denendi mi/başarılı mı/hata
+  metni, dosya yolu — sayfalar bunu okuyabilir.
+- Kimyasal Veritabanı ve Ürün Ekle (Taşıma Evrakı) sayfalarına: tablo
+  gerçekten boşsa sebep mesajı + "🔄 Tablo A'yı şimdi yükle" butonu
+  (embedded dosyadan, admin olmayan roller de görebilir/tetikleyebilir —
+  bu salt-okunur referans veri, zarar riski yok).
+- Kanıt: dosyayı geçici olarak kaldırıp seed_bilgisi'nin doğru hata
+  mesajını ürettiği doğrulandı; UI testiyle kilitlendi. Suite: 220 test.
+
+ÖNEMLİ — Cloud'da hâlâ boş görünüyorsa muhtemel sebep KOD DEĞİL,
+YENİDEN BAŞLAMAMA: Streamlit Cloud, cache_resource ile oluşturulan
+PgDatabaseManager'ı process ömrü boyunca bir kez kurar; git push sonrası
+Cloud genelde otomatik yeniden başlar ama gecikebilir. Kontrol sırası:
+1) Manage app → Reboot app (otomatik olmadıysa zorla tetikler)
+2) Reboot sonrası Kimyasal Veritabanı sayfasını aç — artık boşsa
+   sebep mesajı görünür olacak (dosya bulunamadı / DB hatası / vb.)
+3) Hâlâ belirsizse "🔄 Tablo A'yı şimdi yükle" butonuna bas — sonucu
+   ekranda görürsün.
