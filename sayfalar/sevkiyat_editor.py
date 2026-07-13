@@ -25,7 +25,9 @@ Akış:
 import streamlit as st
 import streamlit.components.v1 as components
 
-from sayfalar._ortak import db, kimyasal_etiket
+from sayfalar._ortak import (db, kimyasal_etiket, firmalar_listesi,
+                             suruculer_listesi, araclar_listesi,
+                             tablo_a_sayisi)
 from webcore.models import Shipment, ShipmentItem, DocumentStatus
 from webcore.engines import ADREngine
 from webcore.errors import turkce_hata_metni
@@ -136,15 +138,15 @@ if st.button("← Sevkiyatlar listesine dön"):
     st.switch_page("sayfalar/sevkiyatlar.py")
 
 d = db()
-# DÜZELTME (performans): bu 3 sorgu ayrı ayrı çağrılınca her biri kendi
-# transaction'ını (BEGIN+SET LOCAL+SORGU+COMMIT) açıyor, her seçimde
-# sayfa yenilenince toplamda 12+ ağ gidiş-gelişine mal oluyordu — "firma
-# seçiminde 1-2 sn donma" şikâyetinin asıl sebebi. toplu_okuma() ile TEK
-# transaction'da birleştirildi.
-with d.toplu_okuma():
-    firmalar = d.get_companies()
-    suruculer = d.get_drivers(active_only=True)
-    araclar = d.get_vehicles(active_only=True)
+# DÜZELTME (asıl kök sebep): toplu_okuma() ağ gidiş-gelişini 16'dan 6'ya
+# indirmişti ama Umut haklıydı — bir seçim için VERİTABANINA HİÇ GİTMEMEK
+# gerekiyordu. Bu listeler artık önbellekli (bkz. sayfalar/_ortak.py);
+# seçim değiştiğinde (Streamlit'in her widget etkileşiminde tüm script'i
+# yeniden çalıştırması yüzünden bu kod tekrar çalışsa da) DB'ye gitmeden
+# doğrudan bellekten okunuyor — 60 saniyelik pencerede sıfır ağ gecikmesi.
+firmalar = firmalar_listesi()
+suruculer = suruculer_listesi(active_only=True)
+araclar = araclar_listesi(active_only=True)
 firma_secenekleri = {0: "— Seçilmedi —"} | {c.id: c.name for c in firmalar}
 surucu_secenekleri = {0: "— Seçilmedi —"} | {s.id: s.full_name for s in suruculer}
 arac_secenekleri = {0: "— Seçilmedi —"} | {a.id: a.plate for a in araclar}
@@ -228,7 +230,7 @@ with sol:
     st.markdown("##### Taşınan Ürünler")
 
     with st.expander("➕ Ürün ekle", expanded=not kalemler):
-        if db().count_chemicals() < TABLO_A_EKSIK_ESIGI:
+        if tablo_a_sayisi() < TABLO_A_EKSIK_ESIGI:
             bilgi = getattr(db(), "seed_bilgisi", {})
             if bilgi.get("denendi") and not bilgi.get("basarili"):
                 st.error("ADR Tablo A yüklü değil — otomatik yükleme "
@@ -242,6 +244,8 @@ with sol:
                     try:
                         with st.spinner("Yükleniyor..."):
                             n = db().import_table_a_excel("ADR_A_TABLOSU.xlsx")
+                        from sayfalar._ortak import tablo_a_onbellek_temizle
+                        tablo_a_onbellek_temizle()
                         st.success(f"{n} kayıt yüklendi.")
                         st.rerun()
                     except Exception as exc:

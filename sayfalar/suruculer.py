@@ -1,6 +1,6 @@
 """Sürücüler — ADR sürücü yönetimi (Faz 2b)."""
 import streamlit as st
-from sayfalar._ortak import db
+from sayfalar._ortak import db, onbellek_temizle
 from webcore.models import Driver
 
 st.title("🧑‍✈️ Sürücüler")
@@ -55,6 +55,7 @@ if suruculer:
         if c5.button(durum_etiketi, key=f"surucu_durum_{s.id}"):
             s.is_active = not s.is_active
             d.update_driver(s)
+            onbellek_temizle()  # DÜZELTME: veri değişti, önbellek bayat kalmasın
             st.rerun()
 else:
     st.info("Kayıtlı sürücü yok.")
@@ -101,9 +102,11 @@ if kaydet:
                         license_class=ehliyet_sinifi, license_expiry=ehliyet_tarih)
         if duzenlenen_id:
             d.update_driver(surucu)
+            onbellek_temizle()  # DÜZELTME: veri değişti, önbellek bayat kalmasın
             st.success("Sürücü güncellendi.")
         else:
             d.add_driver(surucu)
+            onbellek_temizle()  # DÜZELTME: veri değişti, önbellek bayat kalmasın
             st.success("Sürücü eklendi.")
         st.session_state["surucu_form_ac"] = False
         _bos_form_state()

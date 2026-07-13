@@ -1,6 +1,6 @@
 """Firmalar — gönderici/alıcı/taşıyıcı firma yönetimi (Faz 2b)."""
 import streamlit as st
-from sayfalar._ortak import db
+from sayfalar._ortak import db, onbellek_temizle
 from webcore.models import Company
 
 FIRMA_TURLERI = {"sender": "Gönderici", "receiver": "Alıcı", "carrier": "Taşıyıcı"}
@@ -102,9 +102,11 @@ if kaydet:
                         contact_person=yetkili)
         if duzenlenen_id:
             d.update_company(firma)
+            onbellek_temizle()  # DÜZELTME: veri değişti, önbellek bayat kalmasın
             st.success("Firma güncellendi.")
         else:
             d.add_company(firma)
+            onbellek_temizle()  # DÜZELTME: veri değişti, önbellek bayat kalmasın
             st.success("Firma eklendi.")
         st.session_state["firma_form_ac"] = False
         _bos_form_state()
@@ -117,6 +119,7 @@ if iptal:
 
 if sil and duzenlenen_id:
     d.delete_company(duzenlenen_id)
+    onbellek_temizle()  # DÜZELTME: veri değişti, önbellek bayat kalmasın
     st.success("Firma silindi.")
     st.session_state["firma_form_ac"] = False
     _bos_form_state()

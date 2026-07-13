@@ -1,6 +1,6 @@
 """Araçlar — ADR onaylı araç/dorse yönetimi (Faz 2b)."""
 import streamlit as st
-from sayfalar._ortak import db
+from sayfalar._ortak import db, onbellek_temizle
 from webcore.models import Vehicle
 
 st.title("🚚 Araçlar")
@@ -56,6 +56,7 @@ if araclar:
         if c5.button(durum_etiketi, key=f"arac_durum_{a.id}"):
             a.is_active = not a.is_active
             d.update_vehicle(a)
+            onbellek_temizle()  # DÜZELTME: veri değişti, önbellek bayat kalmasın
             st.rerun()
 else:
     st.info("Kayıtlı araç yok.")
@@ -102,9 +103,11 @@ if kaydet:
                        max_capacity=kapasite)
         if duzenlenen_id:
             d.update_vehicle(arac)
+            onbellek_temizle()  # DÜZELTME: veri değişti, önbellek bayat kalmasın
             st.success("Araç güncellendi.")
         else:
             d.add_vehicle(arac)
+            onbellek_temizle()  # DÜZELTME: veri değişti, önbellek bayat kalmasın
             st.success("Araç eklendi.")
         st.session_state["arac_form_ac"] = False
         _bos_form_state()

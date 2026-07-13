@@ -677,3 +677,63 @@ class TestTopluOkuma:
             pass
         assert db._toplu_cursor is None
         assert db.count_chemicals() >= 2939, "hata sonrası bağlantı kullanılamaz durumda"
+
+
+class TestOnbellekliListelerVeIzolasyon:
+    """Düzeltme (Umut'un tespiti): firma/sürücü/araç seçimi DB'ye hiç
+    gitmemeli — bu listeler yalnızca yönetim sayfalarından değiştirilir.
+    sayfalar/_ortak.py'deki st.cache_data tabanlı önbellek, tenant_id'yi
+    HASHLENEN parametre olarak alır (kiracılar arası sızıntı riski
+    olmadan doğru partisyonlanır)."""
+
+    def test_ayni_kiracida_ikinci_cagri_db_ye_gitmez(self):
+        if not PG_DSN:
+            pytest.skip("ADR_PG_TEST_DSN tanımlı değil")
+        from webcore.pg import PgDatabaseManager
+        import sayfalar._ortak as ort
+
+        db1 = PgDatabaseManager(PG_DSN, tenant_id=911)
+        db1.execute_update("DELETE FROM companies")
+        from webcore import Company
+        db1.add_company(Company(type="sender", name="ONB-TEST-911"))
+
+        sayac = {"n": 0}
+        orijinal = PgDatabaseManager.get_companies
+        def sayan(self):
+            sayac["n"] += 1
+            return orijinal(self)
+        PgDatabaseManager.get_companies = sayan
+        try:
+            ort._firmalar_onbellek(db1, db1.tenant_id)
+            ort._firmalar_onbellek(db1, db1.tenant_id)
+            ort._firmalar_onbellek(db1, db1.tenant_id)
+            assert sayac["n"] == 1, "önbellek çalışmıyor, her çağrı DB'ye gidiyor"
+        finally:
+            PgDatabaseManager.get_companies = orijinal
+            db1.execute_update("DELETE FROM companies")
+
+    def test_farkli_kiracilar_birbirinin_onbellegini_gormez(self):
+        """KRİTİK güvenlik testi: st.cache_data varsayılan olarak tüm
+        oturumlar arası paylaşılır — tenant_id önbellek anahtarına doğru
+        eklenmemişse bir kiracı başka bir kiracının firma listesini
+        görebilirdi."""
+        if not PG_DSN:
+            pytest.skip("ADR_PG_TEST_DSN tanımlı değil")
+        from webcore.pg import PgDatabaseManager
+        from webcore import Company
+        import sayfalar._ortak as ort
+
+        dbA = PgDatabaseManager(PG_DSN, tenant_id=921)
+        dbB = PgDatabaseManager(PG_DSN, tenant_id=922)
+        dbA.execute_update("DELETE FROM companies")
+        dbB.execute_update("DELETE FROM companies")
+        dbA.add_company(Company(type="sender", name="SADECE-921"))
+        dbB.add_company(Company(type="sender", name="SADECE-922"))
+
+        rA = ort._firmalar_onbellek(dbA, dbA.tenant_id)
+        rB = ort._firmalar_onbellek(dbB, dbB.tenant_id)
+        assert [c.name for c in rA] == ["SADECE-921"]
+        assert [c.name for c in rB] == ["SADECE-922"], \
+            "SIZINTI: kiracı 922, kiracı 921'in önbelleğini görüyor"
+        dbA.execute_update("DELETE FROM companies")
+        dbB.execute_update("DELETE FROM companies")

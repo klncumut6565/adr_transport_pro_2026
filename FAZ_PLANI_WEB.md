@@ -536,3 +536,35 @@ arka-uçta yürüyor).
 Doğrulama: doğru veri döndüğü, blok dışında normal çalıştığı, blok
 içinde hata olursa cursor referansının temiz kapandığı (sızıntı yok)
 test edildi. Suite: 235 test.
+
+
+## Düzeltme (3. tur, Umut'un mimari tespiti): DB'ye hiç gidilmemesi gerekiyordu
+Umut'un doğru gözlemi: "firma seçimi bir yenileme gerektirecek bir durum
+değil" — haklıydı. toplu_okuma() (2. tur) ağ gidiş-gelişini azaltmıştı
+ama hâlâ HER seçimde veritabanına gidiliyordu; oysa firma/sürücü/araç
+listeleri yalnızca Firmalar/Sürücüler/Araçlar sayfalarından bir kayıt
+değiştirilene kadar SABİTTİR — her dropdown seçiminde yeniden sorulmasına
+hiç gerek yok.
+
+Çözüm: `sayfalar/_ortak.py`'ye `st.cache_data(ttl=60)` tabanlı önbellek
+eklendi (firmalar_listesi/suruculer_listesi/araclar_listesi/tablo_a_sayisi).
+`sayfalar/sevkiyat_editor.py` artık bu önbellekli fonksiyonları kullanıyor
+— aynı kiracıda 60 saniyelik pencerede tekrar seçim yapmak DB'ye HİÇ
+gitmiyor, tamamen bellekten.
+
+GÜVENLİK: st.cache_data varsayılan olarak TÜM oturumlar arası paylaşılan
+bir önbellektir — tenant_id'nin (hashlenen parametre olarak, `_db`'nin
+aksine) önbellek anahtarına dahil edilmesi ZORUNLUYDU, aksi hâlde bir
+kiracının firma listesi başka bir kiracıya sızabilirdi. Kanıtlandı: aynı
+kiracıda 3 art arda çağrı → 1 DB isteği (önbellek çalışıyor); iki farklı
+kiracı → ayrı ayrı doğru veri, sızıntı yok.
+
+Firmalar/Sürücüler/Araçlar sayfalarındaki TÜM ekleme/düzenleme
+noktalarına `onbellek_temizle()` çağrısı eklendi — bir kayıt
+değiştirildiğinde önbellek TTL'yi beklemeden anında tazelenir. Tablo A
+manuel yeniden yüklemesi de kendi önbelleğini (`tablo_a_onbellek_temizle`)
+temizliyor.
+
+Doğrulama: DB çağrı sayacıyla önbelleğin gerçekten devreye girdiği +
+kiracılar arası izolasyonun korunduğu (kritik güvenlik testi) kanıtlandı.
+Suite: 237 test.
