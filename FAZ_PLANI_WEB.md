@@ -635,3 +635,29 @@ Umut'un iki isteği:
 
 Doğrulama: üç sayfanın da varsayılan kapalı render olduğu + SRC5 olmadan
 sürücü kaydının başarıyla tamamlandığı test edildi. Suite: 242 test.
+
+
+## Düzeltme: 'Yeni Ekle' formu gerçekten kapanmıyordu (sayfa geçişinde kalıcıydı)
+Önceki tur yalnızca "sayfaya İLK KEZ girildiğinde form kapalı mı?" diye
+test etmişti — bu her zaman doğruydu. Umut'un "hâlâ gözüküyor" demesi
+FARKLI bir senaryoya işaret ediyordu: form_ac bayrağı st.session_state'te
+tutulur ve OTURUM boyunca kalıcıdır. Kullanıcı formu açıp (Kaydet/İptal
+demeden) BAŞKA bir sayfaya geçip sonra GERİ dönerse, form_ac hâlâ True
+olduğundan form açık görünmeye devam ediyordu — bu, kesinlikle gerçekleşmiş
+olması muhtemel bir senaryo (bugün onlarca test turu boyunca sayfalar
+arası çokça geçiş yapıldı).
+
+Kanıtlandı (AppTest ile üç ayrı script çalıştırması, session_state
+elden ele taşınarak): Sürücüler → Yeni Sürücü tıkla (form_ac=True) →
+Firmalar'a geç → Sürücüler'e GERİ dön → form_ac hâlâ True ÇIKTI (bug
+doğrulandı).
+
+Düzeltme: `sayfalar/_ortak.py` → `sayfaya_taze_girildi(sayfa_adi)`.
+Aktif sayfa adını session_state'te izler; BAŞKA bir sayfadan bu sayfaya
+YENİ geçildiyse form_ac bayrağını zorla False'a çeker. Firmalar/
+Sürücüler/Araçlar'ın üçünde de uygulandı.
+
+İki senaryo da test edildi: (1) form açıkken başka sayfaya gidip geri
+dönünce KAPANIYOR, (2) AYNI sayfada kalıp bir alanla etkileşime girerken
+(ör. yazı yazarken) YANLIŞLIKLA KAPANMIYOR (devam eden veri girişi
+korunuyor). Suite: 244 test.

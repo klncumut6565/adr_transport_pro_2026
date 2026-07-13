@@ -1,6 +1,6 @@
 """Araçlar — ADR onaylı araç/dorse yönetimi (Faz 2b)."""
 import streamlit as st
-from sayfalar._ortak import db, onbellek_temizle
+from sayfalar._ortak import db, onbellek_temizle, sayfaya_taze_girildi
 from webcore.models import Vehicle
 
 st.title("🚚 Araçlar")
@@ -17,9 +17,10 @@ def _bos_form_state():
         st.session_state.pop(f"arac_{alan}", None)
 
 
+_taze_giris = sayfaya_taze_girildi("arac")
 if "arac_duzenle_id" not in st.session_state:
     _bos_form_state()
-if "arac_form_ac" not in st.session_state:
+if "arac_form_ac" not in st.session_state or _taze_giris:
     st.session_state["arac_form_ac"] = False
 
 c1, c2, c3 = st.columns([3, 1, 1])

@@ -318,3 +318,82 @@ class TestSurucuFormuVeGizlilik:
         finally:
             PgDatabaseManager(PG_DSN).execute_update(
                 "DELETE FROM drivers WHERE tc_no = ?", (benzersiz_tc,))
+
+
+class TestSayfaGecisindeFormKapaniyor:
+    """GERÇEK KÖK SEBEP: 'Yeni Ekle' formunun açık/kapalı durumu
+    st.session_state'te tutulur — bu OTURUM boyunca kalıcıdır. Form
+    açılıp kaydedilmeden/iptal edilmeden BAŞKA bir sayfaya geçilirse,
+    sayfaya geri dönüldüğünde form hâlâ AÇIK görünüp yer kaplıyordu
+    ('Sürücüler menüsünde hâlâ gözüküyor' şikâyetinin asıl sebebi —
+    önceki tur yalnızca 'ilk ziyarette varsayılan kapalı' durumunu test
+    etmişti, 'başka sayfadan dönüşte kapanma' senaryosunu değil).
+    sayfalar._ortak.sayfaya_taze_girildi() ile düzeltildi."""
+
+    def test_form_acikken_baska_sayfaya_gidip_geri_donunce_kapanir(self):
+        if not PG_DSN:
+            pytest.skip("ADR_PG_TEST_DSN_APP tanımlı değil")
+        from streamlit.testing.v1 import AppTest
+
+        def al(ss, k, v=None):
+            try:
+                return ss[k]
+            except Exception:
+                return v
+
+        t1 = AppTest.from_file("sayfalar/suruculer.py", default_timeout=30)
+        t1.secrets["db"] = {"dsn": PG_DSN}
+        t1.session_state["user"] = {"username": "u", "tenant_id": 1,
+                                    "role": "admin", "full_name": "U"}
+        t1.run()
+        btn = [b for b in t1.button if "Yeni Sürücü" in b.label][0]
+        btn.click().run()
+        assert al(t1.session_state, "surucu_form_ac") is True, \
+            "buton tıklamasıyla form açılmalı"
+
+        durum = dict(t1.session_state.filtered_state)
+        t2 = AppTest.from_file("sayfalar/firmalar.py", default_timeout=30)
+        t2.secrets["db"] = {"dsn": PG_DSN}
+        for k, v in durum.items():
+            t2.session_state[k] = v
+        t2.run()  # başka sayfaya "geçiş"
+
+        durum2 = dict(t2.session_state.filtered_state)
+        t3 = AppTest.from_file("sayfalar/suruculer.py", default_timeout=30)
+        t3.secrets["db"] = {"dsn": PG_DSN}
+        for k, v in durum2.items():
+            t3.session_state[k] = v
+        t3.run()  # Sürücüler'e geri dönüş
+        assert al(t3.session_state, "surucu_form_ac") is False, \
+            "sayfaya geri dönünce form hâlâ açık görünüyor (yer kaplıyor)"
+        assert len(t3.text_input) <= 1, \
+            "form kapalı olmasına rağmen alanları hâlâ render ediliyor"
+
+    def test_ayni_sayfada_kalindiginda_form_acik_kalir(self):
+        """Regresyonu önlemek için ters kontrol: KULLANICI AYNI sayfada
+        kalıp form içinde bir alanla etkileşime girerse (ör. metin
+        yazması) form KAPANMAMALI — yalnızca sayfa DEĞİŞİNCE kapanmalı."""
+        if not PG_DSN:
+            pytest.skip("ADR_PG_TEST_DSN_APP tanımlı değil")
+        from streamlit.testing.v1 import AppTest
+
+        def al(ss, k, v=None):
+            try:
+                return ss[k]
+            except Exception:
+                return v
+
+        t = AppTest.from_file("sayfalar/suruculer.py", default_timeout=30)
+        t.secrets["db"] = {"dsn": PG_DSN}
+        t.session_state["user"] = {"username": "u", "tenant_id": 1,
+                                   "role": "admin", "full_name": "U"}
+        t.run()
+        btn = [b for b in t.button if "Yeni Sürücü" in b.label][0]
+        btn.click().run()
+        assert al(t.session_state, "surucu_form_ac") is True
+
+        # AYNI sayfada bir alanla etkileşim (ikinci bir rerun, farklı sayfa DEĞİL)
+        ad_alani = [ti for ti in t.text_input if ti.label == "Ad Soyad"][0]
+        ad_alani.set_value("DEVAM EDEN GİRİŞ").run()
+        assert al(t.session_state, "surucu_form_ac") is True, \
+            "aynı sayfada kalırken form yanlışlıkla kapandı"

@@ -1,6 +1,6 @@
 """Sürücüler — ADR sürücü yönetimi (Faz 2b)."""
 import streamlit as st
-from sayfalar._ortak import db, onbellek_temizle
+from sayfalar._ortak import db, onbellek_temizle, sayfaya_taze_girildi
 from webcore.models import Driver
 
 st.title("🧑‍✈️ Sürücüler")
@@ -16,9 +16,12 @@ def _bos_form_state():
         st.session_state.pop(f"surucu_{alan}", None)
 
 
+_taze_giris = sayfaya_taze_girildi("suruculer")
 if "surucu_duzenle_id" not in st.session_state:
     _bos_form_state()
-if "surucu_form_ac" not in st.session_state:
+if "surucu_form_ac" not in st.session_state or _taze_giris:
+    # DÜZELTME: sayfaya başka bir sayfadan yeni geçildiyse (önceki
+    # ziyarette form açık bırakılmış olsa bile) formu KAPALI başlat.
     st.session_state["surucu_form_ac"] = False
 
 c1, c2, c3 = st.columns([3, 1, 1])

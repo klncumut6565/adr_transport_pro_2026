@@ -79,6 +79,26 @@ def tablo_a_onbellek_temizle():
     st.session_state.pop(_ONBELLEK_ANAHTAR_ONEKI + "tablo_a_sayisi", None)
 
 
+def sayfaya_taze_girildi(sayfa_adi: str) -> bool:
+    """DÜZELTME: 'Yeni Ekle' formlarının açık/kapalı durumu
+    (ör. surucu_form_ac) st.session_state'te tutuluyor — bu OTURUM
+    boyunca kalıcıdır. Kullanıcı formu açıp BAŞKA bir sayfaya geçtiğinde
+    (kaydetmeden/iptal etmeden), form_ac bayrağı True kalmaya devam
+    eder; sayfaya tekrar dönüldüğünde form hâlâ açık görünür ve içerik
+    olarak yer kaplar — "düzeltme yapılmamış" hissi veren asıl sebep
+    buydu (form KAPALI-VARSAYILAN mantığı doğruydu, ama önceki bir
+    ziyaretten kalma AÇIK durumu ez iyordu).
+
+    Bu fonksiyon, kullanıcının BAŞKA bir sayfadan bu sayfaya YENİ geçip
+    geçmediğini tespit eder; öyleyse çağıran sayfa form_ac bayrağını
+    zorla False'a çekmelidir — böylece her taze girişte form kapalı
+    başlar, yalnızca AYNI sayfa içindeki gerçek etkileşimler (Kaydet/
+    İptal butonlarına basma gibi) durumunu korur."""
+    onceki = st.session_state.get("_aktif_sayfa")
+    st.session_state["_aktif_sayfa"] = sayfa_adi
+    return onceki != sayfa_adi
+
+
 def kimyasal_etiket(c) -> str:
     """Bir Chemical kaydini secim listelerinde AYIRT EDICI sekilde gosterir.
 

@@ -1,6 +1,6 @@
 """Firmalar — gönderici/alıcı/taşıyıcı firma yönetimi (Faz 2b)."""
 import streamlit as st
-from sayfalar._ortak import db, onbellek_temizle
+from sayfalar._ortak import db, onbellek_temizle, sayfaya_taze_girildi
 from webcore.models import Company
 
 FIRMA_TURLERI = {"sender": "Gönderici", "receiver": "Alıcı", "carrier": "Taşıyıcı"}
@@ -18,9 +18,10 @@ def _bos_form_state():
         st.session_state.pop(f"firma_{alan}", None)
 
 
+_taze_giris = sayfaya_taze_girildi("firmalar")
 if "firma_duzenle_id" not in st.session_state:
     _bos_form_state()
-if "firma_form_ac" not in st.session_state:
+if "firma_form_ac" not in st.session_state or _taze_giris:
     st.session_state["firma_form_ac"] = False
 
 arama_col, buton_col = st.columns([4, 1])
