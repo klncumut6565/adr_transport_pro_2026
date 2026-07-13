@@ -341,3 +341,35 @@ orijinal, sarmalanmamış HTML'i alıyor — hiç etkilenmedi. Kanıtlandı:
 sarmalama yalnızca <head>'e ekleme yapıyor, <body> içeriği birebir aynı
 kalıyor, orijinal @page kuralı korunuyor, PDF orijinal HTML'den sorunsuz
 üretiliyor. Suite: 225 test.
+
+
+## Düzeltme: Uygulama "Running get_db()." ekranında sonsuza kadar donuyordu
+Sebep: her açılışta (her Cloud reboot'unda) TÜM şema göç kontrolleri (10+
+ALTER TABLE/DROP CONSTRAINT taraması) yeniden koşuyordu. Bunlar normalde
+zararsızdır (koşul sağlanmışsa ALTER hiç çalışmaz) AMA önceki bir çökmeden
+(DuplicatePreparedStatement) kalma yarım kesilmiş bir işlem tabloyu kısa
+süreli kilitli bırakmışsa, sıradan bir SELECT bile o kilidi bekleyip
+UYGULAMAYI SONSUZA KADAR DONDURABİLİYORDU (hiçbir zaman timeout olmuyordu).
+
+İki katmanlı düzeltme:
+1. Bağlantıya `lock_timeout=6s` + `statement_timeout=25s` eklendi
+   (webcore/pg.py:_get_conn). Bir kilit gerçekten oluşsa bile artık en
+   fazla birkaç saniye beklenip GÖRÜNÜR bir hataya düşülüyor — bir daha
+   sessizce sonsuza kadar donmuyor.
+2. Şema sürüm işareti (`_SEMA_SURUM`, settings tablosunda saklanır):
+   göçler bir kez tamamlanınca işaretlenir; sonraki her açılış bunu görüp
+   ağır taramaların TAMAMINI atlıyor. Ölçüldü: ilk bağlantı ~5.7 sn
+   (tam göç + 2939 kayıt tohumlama), sonraki bağlantılar ~0.04 sn
+   (138 kat hızlanma). Bu hem donma riskini en aza indiriyor hem de
+   her reboot'u çok daha hızlı hâle getiriyor.
+
+Suite: 225 test (fonksiyonellik bozulmadı, arama/izolasyon/tohumlama
+hepsi hızlı yolda da doğru çalışıyor).
+
+ACİL MÜDAHALE (bu commit'ten BAĞIMSIZ, Umut'un o anki donmuş oturumunu
+açmak için): Supabase SQL Editor'de aşağıdaki sorgu, 2 dakikadan uzun
+süredir "idle in transaction" durumunda takılı kalmış (muhtemelen önceki
+çökmeden kalma) oturumları sonlandırır:
+    SELECT pg_terminate_backend(pid), query, state, now()-query_start AS sure
+    FROM pg_stat_activity
+    WHERE state = 'idle in transaction' AND now() - query_start > interval '2 minutes';

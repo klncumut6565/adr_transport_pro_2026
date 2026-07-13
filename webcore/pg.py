@@ -229,7 +229,21 @@ class PgDatabaseManager(DatabaseManager):
                 # Sunucu-taraflı otomatik PREPARE kapalı: PgBouncer/Supavisor
                 # transaction modunda aynı isimli hazırlanmış ifade başka
                 # bir arka-uçta çakışabiliyordu (DuplicatePreparedStatement).
-                prepare_threshold=None)
+                prepare_threshold=None,
+                # Bağlantı süresi de sınırlı (Cloud/Supabase yavaş uyanışında
+                # sonsuza kadar beklemesin, en fazla 10 sn dener).
+                connect_timeout=10,
+                # KRİTİK: init_database'deki kendi kendini iyileştiren
+                # göçler (ALTER TABLE / DROP CONSTRAINT / DISABLE RLS)
+                # tabloyu kısa süreli KİLİTLER. Önceki bir çökmeden (ör.
+                # DuplicatePreparedStatement) kalma yarım kesilmiş bir
+                # bağlantı bu kilidi bırakmadan asılı kalmışsa, YENİ
+                # bağlantının aynı DDL'i çalıştırması SONSUZA KADAR
+                # BEKLERDİ — kullanıcının "Running get_db()." ekranında
+                # donması tam olarak buydu. lock_timeout/statement_timeout
+                # ile artık en fazla birkaç saniye beklenip GÖRÜNÜR bir
+                # hataya düşülüyor; uygulama bir daha sessizce donmuyor.
+                options="-c lock_timeout=6000 -c statement_timeout=25000")
         return self.connection
 
     def set_tenant(self, tenant_id: int):
@@ -293,11 +307,32 @@ class PgDatabaseManager(DatabaseManager):
         return self.execute_update(query, params)
 
     # ── şema ─────────────────────────────────────────────────────────
+    _SEMA_SURUM = "1"  # ağır göçler değişirse artırılır
+
     def init_database(self):
         conn = self._get_conn()
         with conn.cursor() as cur:
             for name, sql in _sqlite_schema_sql():
                 cur.execute(_to_pg(name, sql))
+
+            # HIZLI YOL: şema daha önce bu sürüme göçürülmüşse, aşağıdaki
+            # ağır ALTER TABLE/DROP CONSTRAINT taramalarının TAMAMI atlanır.
+            # Önceki tasarım HER açılışta (her Cloud reboot'unda) bunların
+            # tümünü yeniden kontrol ediyordu — kendi başına zararsız olsa
+            # da (koşullar zaten sağlanmışsa ALTER hiç çalışmaz), önceki bir
+            # çökmeden (DuplicatePreparedStatement) kalma yarım kesilmiş bir
+            # işlem tabloyu kilitli bırakmışsa, sıradan bir SELECT bile o
+            # kilidi bekleyip UYGULAMAYI SONSUZA KADAR DONDURABİLİYORDU
+            # ("Running get_db()." ekranında asılı kalma). Sürüm işaretiyle
+            # bu taramaların sıklığı en aza indiriliyor; ayrıca bağlantıya
+            # artık lock_timeout/statement_timeout da eklendi (bkz. _get_conn)
+            # — kilit gerçekten oluşsa bile artık en fazla birkaç saniye
+            # beklenip görünür bir hataya düşülüyor, sonsuza dek değil.
+            cur.execute("SELECT value FROM settings WHERE key = '_sema_surum'")
+            mevcut = cur.fetchone()
+            if mevcut and mevcut["value"] == self._SEMA_SURUM:
+                self._tohumla_tablo_a()
+                return
             # MİGRASYON (kendi kendini iyileştirir): eski kurulumlarda
             # chemicals üzerinde UNIQUE(un_number, classification_code,
             # packing_group) kısıtı vardı; CREATE TABLE IF NOT EXISTS mevcut
@@ -353,6 +388,11 @@ class PgDatabaseManager(DatabaseManager):
 
         self._tohumla_tablo_a()
         self._goc_company_products_tenant_kisit(conn)
+        with conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO settings (key, value, description) VALUES (%s, %s, %s) "
+                "ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value",
+                ("_sema_surum", self._SEMA_SURUM, "İç kullanım: şema göç sürümü"))
 
     def _goc_company_products_tenant_kisit(self, conn) -> None:
         """company_products üzerindeki UNIQUE(trade_name, un_number,
