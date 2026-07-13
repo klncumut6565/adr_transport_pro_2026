@@ -702,3 +702,31 @@ Doğrulama: formda ADR alanlarının artık görünmediği + önceden ADR belges
 girilmiş bir sürücü düzenlenip başka bir alan (telefon) değiştirildiğinde
 ADR belge no/bitişinin VERİ TABANINDA DEĞİŞMEDEN kaldığı (veri kaybı
 kanıtlı şekilde yok) test edildi. Suite: 248 test.
+
+
+## Düzeltme: ADR Kontrol Merkezi paneli masaüstünün büyük kısmını göstermiyordu
+Umut'un tespiti: web panelinde masaüstündeki hesaplanan çoğu şey hiç
+görünmüyordu. Kök sebep: web, masaüstünün kullandığı TEK gerçek kaynak
+fonksiyonu (ADREngine.generate_adr_report — puan, plaka, tünel, yazılı
+talimat, muafiyet türü ve TÜM uyarı seviyelerini bir arada üretir)
+KULLANMIYORDU; bunun yerine calculate_1136_points + 
+calculate_tunnel_restriction + validate_shipment'ı AYRI AYRI çağırıyordu.
+
+Eksik çıkanlar:
+1. **Yazılı Talimat (ADR 8.1.2.1) göstergesi** — masaüstünde var, web'de
+   hiç yoktu. Eklendi.
+2. **Muafiyet türü göstergesi** (rapor.exemption_type) — hiç yoktu.
+   Eklendi.
+3. **info seviyeli mesajlar** — masaüstü "Uyarı ve Hatalar" listesinde
+   errors/warnings YANINDA info mesajlarını da gösterir (ör. "SRC5
+   belgesi: X", "1.1.3.6: Miktar muafiyeti uygulanır" gibi onay/
+   bilgilendirme satırları). Web yalnızca errors+warnings gösteriyordu,
+   info'yu sessizce atıyordu. Artık ℹ️ ile ayrı gösteriliyor.
+
+`sayfalar/sevkiyat_editor.py`'deki Kontrol Merkezi paneli artık TEK bir
+`generate_adr_report()` çağrısından besleniyor — masaüstüyle birebir aynı
+hesaplama yolu, ayrı fonksiyonların birbirinden sapması riski kalmadı.
+
+Doğrulama: Sınıf 1 senaryosunda Yazılı Talimat + Muafiyet göstergelerinin
+göründüğü, SRC5'li sürücüde info mesajının kaybolmadığı test edildi.
+Suite: 246 test.

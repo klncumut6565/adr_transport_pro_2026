@@ -435,12 +435,22 @@ with sag:
 
     items = _item_nesneleri()
 
+    # DÜZELTME (masaüstüyle eşitleme): önceden calculate_1136_points +
+    # calculate_tunnel_restriction + validate_shipment AYRI AYRI
+    # çağrılıyordu — bu hem "Yazılı Talimat" ve "Muafiyet" göstergelerinin
+    # hiç hesaplanmamasına (masaüstünde var, web'de yoktu) hem de bazı
+    # bilgilendirme (info) mesajlarının sessizce kaybolmasına yol açıyordu.
+    # Artık masaüstünün kullandığı TEK gerçek kaynak fonksiyon çağrılıyor:
+    # ADREngine.generate_adr_report — puan, plaka, tünel, yazılı talimat,
+    # muafiyet türü ve TÜM uyarı seviyelerini (errors/warnings/info) aynı
+    # anda, aynı mantıkla üretir.
+    rapor = ADREngine.generate_adr_report(
+        items, driver=_secili_driver, vehicle=_secili_vehicle) if items else None
+
     # ---- 1.1.3.6 Miktar Muafiyeti ----------------------------------------
-    if items:
-        puan, plaka_gerekli, _detay = ADREngine.calculate_1136_points(items)
-        tunel = ADREngine.calculate_tunnel_restriction(items)
-    else:
-        puan, plaka_gerekli, tunel = 0.0, False, "—"
+    puan = rapor.total_points if rapor else 0.0
+    plaka_gerekli = rapor.orange_plate_required if rapor else False
+    tunel = rapor.tunnel_code if rapor else "—"
 
     st.markdown("**1.1.3.6 — Miktar Muafiyeti**")
     oran = min(puan / 1000, 1.0) if puan else 0.0
@@ -489,10 +499,19 @@ with sag:
             st.warning(f"Önizleme oluşturulamadı: {turkce_hata_metni(exc)}")
 
     # ---- Durum Göstergeleri ----------------------------------------------
+    # DÜZELTME: "Yazılı Talimat" ve "Muafiyet" masaüstünde var, web'de
+    # hiç gösterilmiyordu — eklendi. Ürün Sayısı/Tünel Kodu korundu.
     st.markdown("**Durum Göstergeleri**")
     dg1, dg2 = st.columns(2)
     dg1.metric("Ürün Sayısı", len(kalemler))
     dg2.metric("Tünel Kodu", tunel)
+
+    if rapor:
+        if rapor.written_instructions_required:
+            st.warning("⚠️ Yazılı Talimat: ZORUNLU (ADR 8.1.2.1)")
+        else:
+            st.caption("✓ Yazılı Talimat: Gerekmez")
+        st.caption(f"Muafiyet: {rapor.exemption_type}")
 
     st.divider()
 
@@ -524,20 +543,26 @@ with sag:
     st.divider()
 
     # ---- Uyarı ve Hatalar ---------------------------------------------------
+    # DÜZELTME: aynı rapor nesnesinden hem errors/warnings HEM DE info
+    # mesajları gösteriliyor — önceden info seviyesi tamamen kayboluyordu
+    # (masaüstü bunları da listede gösteriyordu, ör. "SRC5 belgesi: X").
     st.markdown("**Uyarı ve Hatalar**")
-    sonuc = ADREngine.validate_shipment(items, sender=_secili_sender, receiver=_secili_receiver,
-                                         driver=_secili_driver, vehicle=_secili_vehicle)
     uyumsuzluklar = ADREngine.check_compatibility(items) if items else []
+    hatalar = rapor.errors if rapor else []
+    uyarilar = rapor.warnings if rapor else []
+    bilgiler = rapor.info if rapor else []
 
-    if not sonuc.errors and not sonuc.warnings and not uyumsuzluklar:
+    if not hatalar and not uyarilar and not uyumsuzluklar:
         st.success("Sorun tespit edilmedi.")
     else:
-        for _, mesaj in sonuc.errors:
+        for _, mesaj in hatalar:
             st.error(mesaj)
         for u in uyumsuzluklar:
             st.error(f"Uyumsuzluk: {u}")
-        for _, mesaj in sonuc.warnings:
+        for _, mesaj in uyarilar:
             st.warning(mesaj)
+    for _, mesaj in bilgiler:
+        st.caption(f"ℹ️ {mesaj}")
 
     st.divider()
 

@@ -535,3 +535,61 @@ class TestSurucuADRAlanlariTamKaldirildi:
             assert any(s.id == did for s in liste)
         finally:
             db.execute_update("DELETE FROM drivers WHERE tc_no = '55555555552'")
+
+
+class TestKontrolMerkeziMasaustuEslesme:
+    """Düzeltme: web'deki ADR Kontrol Merkezi paneli, masaüstünün
+    kullandığı TEK gerçek kaynak fonksiyona (generate_adr_report)
+    bağlandı. Önceden parça parça (calculate_1136_points +
+    calculate_tunnel_restriction + validate_shipment) çağrılıyordu; bu
+    yüzden 'Yazılı Talimat' ve 'Muafiyet' göstergeleri hiç yoktu, info
+    seviyeli mesajlar da sessizce kayboluyordu."""
+
+    def test_yazili_talimat_ve_muafiyet_gorunur(self):
+        if not PG_DSN:
+            pytest.skip("ADR_PG_TEST_DSN_APP tanımlı değil")
+        from streamlit.testing.v1 import AppTest
+        t = AppTest.from_file("sayfalar/sevkiyat_editor.py", default_timeout=40)
+        t.secrets["db"] = {"dsn": PG_DSN}
+        t.session_state["user"] = {"username": "umut", "tenant_id": 1,
+                                   "role": "admin", "full_name": "U"}
+        t.run()
+        # Sınıf 1 (patlayıcı) -> yazılı talimat zorunlu senaryosu
+        t.session_state["editor_kalemler"] = [dict(
+            id=None, shipment_id=None, chemical_id=1, un_number="0081",
+            proper_name="PATLAYICI", class_code="1", packing_group="",
+            packaging_type="Kutu", packaging_count=5, net_quantity=30.0,
+            gross_quantity=30.0, unit="kg", is_lq=False, is_eq=False,
+            lq_max_per_package=0.0, eq_max_per_package=0.0, notes="",
+            tunnel_code="B", segregation_group="", classification_code="1.1D",
+            transport_category="1", special_provisions="")]
+        t.run()
+        assert not t.exception
+        metin = " | ".join(str(x.value) for x in
+                           (list(t.error) + list(t.success) + list(t.warning) + list(t.caption)))
+        assert "Yazılı Talimat" in metin, "Yazılı Talimat göstergesi eksik"
+        assert "Muafiyet" in metin, "Muafiyet göstergesi eksik"
+
+    def test_info_mesajlari_kaybolmuyor(self):
+        """SRC5 belgeli bir sürücü seçilince rapor.info listesindeki
+        onay mesajı ('SRC5 belgesi: X' gibi) artık görünmeli."""
+        if not PG_DSN:
+            pytest.skip("ADR_PG_TEST_DSN_APP tanımlı değil")
+        from webcore.pg import PgDatabaseManager
+        from webcore.models import Driver
+        from webcore.engines import ADREngine
+        from webcore.models import ShipmentItem
+
+        db = PgDatabaseManager(PG_DSN)
+        d = Driver(full_name="Test", src5_no="SRC5-BILGI-TEST")
+        f = ShipmentItem.__dataclass_fields__
+        mk = lambda **o: ShipmentItem(**{k: v for k, v in o.items() if k in f})
+        # Sınıf 1 (patlayıcı) -> driver_adr_required dalı tetiklenir ->
+        # SRC5 kontrolü (ve info mesajı) bu dalın İÇİNDE hesaplanır.
+        items = [mk(un_number="0081", proper_name="PATLAYICI", class_code="1",
+                    transport_category="1", net_quantity=30, unit="kg",
+                    tunnel_code="B")]
+        rapor = ADREngine.generate_adr_report(items, driver=d)
+        info_mesajlari = [m for _, m in rapor.info]
+        assert any("SRC5" in m for m in info_mesajlari), \
+            "SRC5 onay mesajı rapor.info'da yok — panel bunu göstermemeli demek değil"
