@@ -35,9 +35,13 @@ class TestGirisAkisi:
         at.button[0].set_value(True).run()
         assert not at.exception
         assert at.session_state["user"]["username"] == "umut"
-        # rerun sonrası gösterge paneli başlığı ve metrikler
-        assert any("Gösterge Paneli" in str(t.value) for t in at.title)
-        assert len(at.metric) >= 4
+        # rerun sonrası varsayılan açılış sayfası: Taşıma Evrakı
+        assert any("Taşıma Evrakı" in str(t.value) for t in at.title)
+        # Evrak No otomatik dolu gelmeli (ADREngine.format_document_number)
+        assert any(ti.label == "Evrak No" and str(ti.value).startswith("ADR-")
+                  for ti in at.text_input)
+        # ADR Kontrol Merkezi paneli: en az Ürün Sayısı + Tünel Kodu metrikleri
+        assert len(at.metric) >= 2
 
 
 class TestSevkiyatEditoruDogrudanGiris:

@@ -69,9 +69,10 @@ def main():
 
     pages = [
         st.Page("sayfalar/sevkiyat_editor.py",
-                title="Taşıma Evrakı", icon="📝", url_path="sevkiyat-editor"),
+                title="Taşıma Evrakı", icon="📝", url_path="sevkiyat-editor",
+                default=True),
         st.Page("sayfalar/gosterge_paneli.py",
-                title="Gösterge Paneli", icon="📊", default=True),
+                title="Gösterge Paneli", icon="📊"),
         st.Page("sayfalar/kimyasal_veritabani.py",
                 title="Kimyasal Veritabanı", icon="🧪"),
         st.Page("sayfalar/sevkiyatlar.py",
