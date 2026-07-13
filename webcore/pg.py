@@ -214,7 +214,17 @@ class PgDatabaseManager(DatabaseManager):
         if self.connection is None or self.connection.closed:
             self.connection = psycopg.connect(
                 self.dsn, row_factory=dict_row,
-                cursor_factory=TranslatingCursor, autocommit=True)
+                cursor_factory=TranslatingCursor, autocommit=True,
+                # KRİTİK: Supabase'in Transaction pooler'ı (PgBouncer,
+                # transaction modu) her sorguyu farklı bir arka-uç Postgres
+                # bağlantısına yönlendirebilir. psycopg varsayılan olarak
+                # aynı sorguyu birkaç kez gördükten sonra sunucu-taraflı
+                # PREPARE'e geçer (otomatik adlandırılmış hazırlanmış
+                # ifade); PgBouncer transaction modunda bu isim başka bir
+                # arka-uçta ÇAKIŞABİLİR (DuplicatePreparedStatement).
+                # prepare_threshold=None bunu tamamen kapatır — Supabase'in
+                # kendi psycopg dokümantasyonunun önerdiği ayar budur.
+                prepare_threshold=None)
             # Kiracı kimliği oturum değişkenine yazılır; RLS politikaları
             # tüm sorguları buna göre süzer. İş metotları hiç değişmez.
             with self.connection.cursor() as cur:

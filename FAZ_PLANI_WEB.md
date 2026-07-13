@@ -221,3 +221,51 @@ Cloud genelde otomatik yeniden başlar ama gecikebilir. Kontrol sırası:
    sebep mesajı görünür olacak (dosya bulunamadı / DB hatası / vb.)
 3) Hâlâ belirsizse "🔄 Tablo A'yı şimdi yükle" butonuna bas — sonucu
    ekranda görürsün.
+
+
+## KRİTİK ALTYAPI BULGUSU: Transaction pooler + RLS/oturum durumu uyumsuzluğu
+Umut'un canlıda aldığı `psycopg.errors.DuplicatePreparedStatement` hatası,
+kökeni çok daha ciddi bir soruna işaret ediyordu.
+
+**Sorun:** Supabase Connect ekranında Faz 0b'de seçtiğimiz "Transaction
+pooler" (port 6543, PgBouncer/Supavisor transaction modu), HER SORGUYU
+farklı bir arka-uç Postgres bağlantısına yönlendirebilir. Supabase'in
+kendi dokümantasyonu açıkça belirtiyor: bu modda oturum durumu (SET,
+set_config, hazırlanmış ifadeler, advisory lock'lar) İSTEMCİLER ARASINDA
+KORUNMAZ ve "clients must not use any session-based features, since each
+transaction ends up in a different connection."
+
+Bizim mimarimiz TAM OLARAK bunu ihlal ediyordu:
+1. `SELECT set_config('app.tenant_id', ..., false)` bağlantı açılışında
+   BİR KEZ çalıştırılıyor (webcore/pg.py:_get_conn). Transaction pooler
+   altında bu değer yalnızca O ANKİ arka-uca yazılır; sonraki sorgular
+   BAŞKA bir arka-uca gidebilir ve orada app.tenant_id hiç set edilmemiş
+   olabilir → RLS'in COALESCE(...,1) varsayılanı sessizce devreye girer.
+   Şu an tek kiracı (id=1) olduğu için bu VERİ SIZINTISI OLARAK henüz
+   GÖRÜNMEDİ (yanlış varsayılan bile "doğru" kiracıya denk geliyordu) —
+   ama ikinci kiracı eklendiğinde ciddi bir izolasyon riskiydi.
+2. psycopg'nin otomatik sunucu-taraflı PREPARE'i, transaction modunda
+   aynı isimdeki hazırlanmış ifadenin başka bir arka-uçta zaten var
+   olmasıyla çakışıyordu → DuplicatePreparedStatement (Umut'un gördüğü
+   hata).
+
+**Uygulanan düzeltme (kod tarafı, kalıcı):**
+- `psycopg.connect(..., prepare_threshold=None)` — sunucu-taraflı otomatik
+  PREPARE tamamen kapatıldı. Bu, hangi pooler modu kullanılırsa kullanılsın
+  DuplicatePreparedStatement'i kalıcı olarak önler.
+
+**YAPILMASI GEREKEN (Umut, Streamlit Cloud Secrets'ta, 5 dakika):**
+Supabase → Connect → bağlantı dizesini **port 6543 (Transaction pooler)**
+yerine **port 5432, Session pooler** ile değiştir (host aynı kalır:
+`aws-x-region.pooler.supabase.com`, yalnız port 5432). Session modu her
+istemciye (yani her Streamlit Cloud process'ine) YAŞAM BOYU SABİT bir
+arka-uç bağlantısı ayırır — tam olarak bizim "bağlantıyı bir kez aç, tekrar
+kullan" mimarimizin varsaydığı davranış. IPv4 uyumludur (Direct bağlantının
+IPv6 sorunu burada yok), bu yüzden Streamlit Cloud için de sorunsuz çalışır.
+Supabase'in kendi dokümantasyonu da kalıcı/uzun-ömürlü backend'ler için
+tam olarak bunu öneriyor. Değişiklik yalnızca DSN'deki portu değiştirmek;
+kod tarafında başka hiçbir şey değişmez.
+
+Suite: 220 test (mevcut testler yerel Postgres'e karşı zaten session-benzeri
+tek bağlantı kullanıyordu, bu sınıf hatayı yerelde yakalayamazdık —
+yalnız gerçek Supabase pooler davranışında ortaya çıkar).
