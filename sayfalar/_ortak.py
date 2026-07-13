@@ -30,40 +30,55 @@ def kullanici():
 # ANAHTARINA KATMA, sadece çağırmak için kullan der (DB nesnesi zaten
 # hashlenebilir değil).
 @st.cache_data(ttl=60, show_spinner=False)
-def _firmalar_onbellek(_db, tenant_id: int):
-    return _db.get_companies()
+def _firmalar_onbellek(_db, tenant_id: int) -> list:
+    # DÜZELTME: st.cache_data, dönen değeri önbellek deposuna yazarken
+    # pickle'lıyor. Company/Driver/Vehicle basit dataclass'lar olsa da
+    # Streamlit Cloud'daki Python sürümünde (3.14) bu bazen
+    # UnserializableReturnValueError ile patlıyordu (yerelde 3.12'de
+    # yeniden üretilemedi — sürüm farkı). Kesin sebebi kovalamak yerine
+    # HER ORTAMDA garanti çalışan yola geçildi: özel sınıf nesneleri
+    # yerine düz sözlükler (dataclasses.asdict) önbelleğe alınır; bunlar
+    # pickle için en güvenli, en basit veri türüdür.
+    import dataclasses
+    return [dataclasses.asdict(c) for c in _db.get_companies()]
 
 
 @st.cache_data(ttl=60, show_spinner=False)
-def _suruculer_onbellek(_db, tenant_id: int, active_only: bool = True):
-    return _db.get_drivers(active_only=active_only)
+def _suruculer_onbellek(_db, tenant_id: int, active_only: bool = True) -> list:
+    import dataclasses
+    return [dataclasses.asdict(s) for s in _db.get_drivers(active_only=active_only)]
 
 
 @st.cache_data(ttl=60, show_spinner=False)
-def _araclar_onbellek(_db, tenant_id: int, active_only: bool = True):
-    return _db.get_vehicles(active_only=active_only)
+def _araclar_onbellek(_db, tenant_id: int, active_only: bool = True) -> list:
+    import dataclasses
+    return [dataclasses.asdict(a) for a in _db.get_vehicles(active_only=active_only)]
 
 
 @st.cache_data(ttl=300, show_spinner=False)
 def _tablo_a_sayisi_onbellek(_db):
     # chemicals GLOBAL'dir (kiracıya özel değil — bkz. webcore/pg.py notu),
     # bu yüzden tenant_id parametresi yok; gerçekten herkes için ortak.
+    # (int dönüyor, zaten sorunsuz picklenir — dönüşüm gerekmiyor.)
     return _db.count_chemicals()
 
 
 def firmalar_listesi():
+    from webcore.models import Company
     d = db()
-    return _firmalar_onbellek(d, d.tenant_id)
+    return [Company(**h) for h in _firmalar_onbellek(d, d.tenant_id)]
 
 
 def suruculer_listesi(active_only: bool = True):
+    from webcore.models import Driver
     d = db()
-    return _suruculer_onbellek(d, d.tenant_id, active_only)
+    return [Driver(**h) for h in _suruculer_onbellek(d, d.tenant_id, active_only)]
 
 
 def araclar_listesi(active_only: bool = True):
+    from webcore.models import Vehicle
     d = db()
-    return _araclar_onbellek(d, d.tenant_id, active_only)
+    return [Vehicle(**h) for h in _araclar_onbellek(d, d.tenant_id, active_only)]
 
 
 def tablo_a_sayisi():

@@ -730,10 +730,45 @@ class TestOnbellekliListelerVeIzolasyon:
         dbA.add_company(Company(type="sender", name="SADECE-921"))
         dbB.add_company(Company(type="sender", name="SADECE-922"))
 
+        # NOT: _firmalar_onbellek artık düz sözlük listesi döndürüyor
+        # (UnserializableReturnValueError düzeltmesi — bkz. sayfalar/_ortak.py)
         rA = ort._firmalar_onbellek(dbA, dbA.tenant_id)
         rB = ort._firmalar_onbellek(dbB, dbB.tenant_id)
-        assert [c.name for c in rA] == ["SADECE-921"]
-        assert [c.name for c in rB] == ["SADECE-922"], \
+        assert [c["name"] for c in rA] == ["SADECE-921"]
+        assert [c["name"] for c in rB] == ["SADECE-922"], \
             "SIZINTI: kiracı 922, kiracı 921'in önbelleğini görüyor"
         dbA.execute_update("DELETE FROM companies")
         dbB.execute_update("DELETE FROM companies")
+
+
+class TestOnbellekPickleGuvenligi:
+    """Düzeltme: st.cache_data, dönen değeri pickle'layarak depoluyor.
+    Streamlit Cloud'daki Python 3.14'te Company/Driver/Vehicle dataclass
+    nesnelerini önbelleğe almak UnserializableReturnValueError ile
+    patlıyordu (yerelde 3.12'de yeniden üretilemedi). Çözüm: önbellekte
+    her zaman düz sözlükler tutulur, dataclass'a dönüşüm çağıran tarafta
+    yapılır — pickle için en güvenli, en basit veri türü."""
+
+    def test_onbellek_katmani_duz_sozluk_dondurur(self):
+        if not PG_DSN:
+            pytest.skip("ADR_PG_TEST_DSN tanımlı değil")
+        from webcore.pg import PgDatabaseManager
+        from webcore import Company
+        import sayfalar._ortak as ort
+
+        db = PgDatabaseManager(PG_DSN, tenant_id=941)
+        db.execute_update("DELETE FROM companies")
+        db.add_company(Company(type="sender", name="PICKLE-TEST"))
+        try:
+            ham = ort._firmalar_onbellek(db, db.tenant_id)
+            assert isinstance(ham, list) and isinstance(ham[0], dict), \
+                "önbellek artık düz sözlük döndürmeli, özel sınıf nesnesi değil"
+            import pickle
+            pickle.dumps(ham)  # pickle güvenliğinin doğrudan kanıtı
+
+            # çağıran taraf doğru şekilde Company nesnesine geri çeviriyor mu
+            nesneler = [Company(**h) for h in ham]
+            assert nesneler[0].name == "PICKLE-TEST"
+            assert isinstance(nesneler[0], Company)
+        finally:
+            db.execute_update("DELETE FROM companies")

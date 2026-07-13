@@ -568,3 +568,20 @@ temizliyor.
 Doğrulama: DB çağrı sayacıyla önbelleğin gerçekten devreye girdiği +
 kiracılar arası izolasyonun korunduğu (kritik güvenlik testi) kanıtlandı.
 Suite: 237 test.
+
+
+## Düzeltme: UnserializableReturnValueError (önbellekleme sonrası)
+Bir önceki turun st.cache_data önbelleklemesi canlıda
+`UnserializableReturnValueError` ile patladı. st.cache_data, dönen
+değeri önbellek deposuna yazarken pickle'lıyor; Company/Driver/Vehicle
+basit dataclass'lar olsa da Streamlit Cloud'daki Python 3.14'te bu bazen
+başarısız oluyordu (yerelde 3.12'de kesin sebep yeniden üretilemedi —
+sürüm farkı gibi görünüyor). Kovalamak yerine HER ORTAMDA garanti çalışan
+yola geçildi: `sayfalar/_ortak.py`'deki önbellek fonksiyonları artık özel
+sınıf nesneleri yerine düz sözlükler (`dataclasses.asdict`) döndürüyor —
+pickle için en güvenli, en basit veri türü. Company/Driver/Vehicle
+nesnelerine dönüşüm çağıran tarafta (`firmalar_listesi()` vb.) yapılıyor.
+
+Doğrulama: önbelleğin gerçekten düz sözlük döndürdüğü, bu sözlüklerin
+pickle.dumps ile sorunsuz serileştiği, ve çağıran tarafın doğru
+dataclass nesnesine geri çevirdiği test edildi. Suite: 238 test.
