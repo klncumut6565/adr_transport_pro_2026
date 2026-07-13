@@ -264,3 +264,57 @@ class TestKimyasalVeritabaniCanliArama:
             "sayfa hâlâ varsayılan olarak bir tablo gösteriyor"
         assert not any(ti.label.startswith("Ara (") for ti in t.text_input), \
             "eski text_input tabanlı arama hâlâ duruyor"
+
+
+class TestSurucuFormuVeGizlilik:
+    """Düzeltme: SRC5 belgesi artık sürücü form kaydında ZORUNLU DEĞİL
+    (yalnızca Ad Soyad zorunlu). Ayrıca Firmalar/Sürücüler/Araçlar
+    sayfalarında 'Yeni Ekle' formu tıklanmadıkça hiç render OLMAMALI."""
+
+    def test_form_varsayilan_olarak_kapali(self):
+        if not PG_DSN:
+            pytest.skip("ADR_PG_TEST_DSN_APP tanımlı değil")
+        from streamlit.testing.v1 import AppTest
+        for sayfa in ("sayfalar/suruculer.py", "sayfalar/firmalar.py",
+                     "sayfalar/arac.py"):
+            t = AppTest.from_file(sayfa, default_timeout=30)
+            t.secrets["db"] = {"dsn": PG_DSN}
+            t.session_state["user"] = {"username": "u", "tenant_id": 1,
+                                       "role": "admin", "full_name": "U"}
+            t.run()
+            assert not t.exception, f"{sayfa}: {[str(e.value) for e in t.exception]}"
+            assert len(t.text_input) <= 1, \
+                f"{sayfa}: form varsayılan olarak açık görünüyor (yer kaplıyor)"
+
+    def test_src5_olmadan_surucu_kaydedilebilir(self):
+        if not PG_DSN:
+            pytest.skip("ADR_PG_TEST_DSN_APP tanımlı değil")
+        import uuid
+        from streamlit.testing.v1 import AppTest
+        from webcore.pg import PgDatabaseManager
+
+        benzersiz_tc = uuid.uuid4().hex[:11]
+        t = AppTest.from_file("sayfalar/suruculer.py", default_timeout=30)
+        t.secrets["db"] = {"dsn": PG_DSN}
+        t.session_state["user"] = {"username": "u", "tenant_id": 1,
+                                   "role": "admin", "full_name": "U"}
+        t.run()
+        yeni_btn = [b for b in t.button if "Yeni Sürücü" in b.label]
+        assert yeni_btn
+        yeni_btn[0].click().run()
+        # form açıldı, Ad Soyad + benzersiz TC doldur, SRC5'i BOŞ bırak
+        ad_alani = [ti for ti in t.text_input if ti.label == "Ad Soyad"][0]
+        ad_alani.set_value("SRC5SIZ TEST SÜRÜCÜ")
+        tc_alani = [ti for ti in t.text_input if ti.label == "TC No"][0]
+        tc_alani.set_value(benzersiz_tc)
+        kaydet_btn = [b for b in t.button if "Kaydet" in b.label][0]
+        try:
+            kaydet_btn.click().run()
+            assert not t.exception
+            assert not any("SRC5 belgesi zorunlu" in str(e.value) for e in t.error), \
+                "SRC5 hâlâ zorunlu tutuluyor"
+            assert any("eklendi" in str(s.value).lower() for s in t.success), \
+                "sürücü SRC5 olmadan kaydedilemedi"
+        finally:
+            PgDatabaseManager(PG_DSN).execute_update(
+                "DELETE FROM drivers WHERE tc_no = ?", (benzersiz_tc,))

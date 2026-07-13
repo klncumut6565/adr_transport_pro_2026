@@ -617,3 +617,21 @@ onbellek_temizle'nin doğru çalıştığı, ve gerçek PgDatabaseManager ile
 uçtan uca (DB çağrı sayacıyla) doğrulandı. Ayrıca sayfa iki kez art arda
 çalıştırılıp (widget etkileşimi taklidi) hatasız olduğu kontrol edildi.
 Suite: 240 test.
+
+
+## Düzeltme: SRC5 zorunluluğu kaldırıldı + form-gizliliği doğrulandı
+Umut'un iki isteği:
+1. Yeni sürücü eklerken "SRC5 belgesi zorunlu" hatası kaldırılsın —
+   `sayfalar/suruculer.py`'de form kaydı yalnızca Ad Soyad'ı zorunlu
+   tutacak şekilde düzeltildi. ÖNEMLİ AYRIM: bu yalnızca FORM-seviyesi
+   bir kısıtlamaydı; gerçek ADR mevzuat kontrolü (sevkiyat sırasında
+   SRC5 gerekliliği, webcore/engines.py'deki motor) DEĞİŞTİRİLMEDİ —
+   sürücü SRC5'siz eklenebilir ama sevkiyatta hâlâ doğru şekilde uyarılır.
+2. Firmalar/Sürücüler/Araçlar sayfalarındaki "Yeni Ekle" formu tıklanmadıkça
+   yer kaplamasın — KONTROL EDİLDİ, bu davranış her üç sayfada da ZATEN
+   doğru uygulanmıştı (buton+session_state+st.stop() deseni). AppTest ile
+   doğrulandı: form kapalıyken yalnızca arama kutusu render oluyor (form
+   alanları hiç yok).
+
+Doğrulama: üç sayfanın da varsayılan kapalı render olduğu + SRC5 olmadan
+sürücü kaydının başarıyla tamamlandığı test edildi. Suite: 242 test.

@@ -93,9 +93,13 @@ with st.form("surucu_formu"):
 if kaydet:
     if not ad.strip():
         st.error("Ad Soyad zorunlu.")
-    elif not src5_no.strip():
-        st.error("SRC5 belgesi zorunlu (ADR mevzuatı gereği).")
     else:
+        # DÜZELTME (Umut'un talebi): SRC5 belgesi form kaydında ZORUNLU
+        # TUTULMUYOR artık — sürücü SRC5 bilgisi olmadan da eklenebilir/
+        # düzenlenebilir (ör. belge sonradan temin edilecekse). Gerçek
+        # ADR uyumluluk kontrolü (sevkiyat sırasında SRC5 gerekliliği)
+        # webcore/engines.py'deki mevzuat motorunda hâlâ duruyor ve
+        # DEĞİŞTİRİLMEDİ — yalnızca bu form-seviyesi engel kaldırıldı.
         surucu = Driver(id=duzenlenen_id, full_name=ad, tc_no=tc, phone=telefon,
                         adr_certificate_no=adr_no, adr_certificate_expiry=adr_tarih,
                         src5_no=src5_no, src5_expiry=src5_tarih,
