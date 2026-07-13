@@ -1,1 +1,24 @@
-
+# Streamlit Community Cloud "uzun süre trafik yok -> uyku" davranışını ve
+# Supabase ücretsiz planının "7 gün istek yok -> duraklat" sayacını kırar.
+# app.py giriş ekranı her yüklendiğinde hafif bir SELECT 1 attığı için
+# TEK ping ikisini birden canlı tutar.
+#
+# KURULUM (bir kez):
+#   Repo -> Settings -> Secrets and variables -> Actions -> Variables
+#   -> New repository variable: APP_URL = https://<uygulama-adresin>.streamlit.app
+name: keepalive
+on:
+  schedule:
+    - cron: "*/15 * * * *"   # 15 dakikada bir
+  workflow_dispatch: {}       # elle tetikleme
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Uygulamaya ping at
+        run: |
+          if [ -z "${{ vars.APP_URL }}" ]; then
+            echo "APP_URL repo değişkeni tanımlı değil; atlanıyor."
+            exit 0
+          fi
+          curl -s -o /dev/null -w "HTTP %{http_code}\n" --max-time 60 "${{ vars.APP_URL }}"
