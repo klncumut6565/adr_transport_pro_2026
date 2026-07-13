@@ -68,14 +68,14 @@ def main():
     get_db().set_tenant(user["tenant_id"])
 
     pages = [
+        st.Page("sayfalar/sevkiyat_editor.py",
+                title="Taşıma Evrakı", icon="📝", url_path="sevkiyat-editor"),
         st.Page("sayfalar/gosterge_paneli.py",
                 title="Gösterge Paneli", icon="📊", default=True),
         st.Page("sayfalar/kimyasal_veritabani.py",
                 title="Kimyasal Veritabanı", icon="🧪"),
         st.Page("sayfalar/sevkiyatlar.py",
                 title="Sevkiyatlar", icon="🚛"),
-        st.Page("sayfalar/sevkiyat_editor.py",
-                title="Taşıma Evrakı", icon="📝", url_path="sevkiyat-editor"),
         st.Page("sayfalar/raporlar.py",
                 title="Raporlar", icon="📈"),
         st.Page("sayfalar/karisik_yukleme.py",
