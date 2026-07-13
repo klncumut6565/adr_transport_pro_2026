@@ -75,7 +75,7 @@ def main():
         st.Page("sayfalar/sevkiyatlar.py",
                 title="Sevkiyatlar", icon="🚛"),
         st.Page("sayfalar/sevkiyat_editor.py",
-                title="Sevkiyat Editörü", icon="📝", url_path="sevkiyat-editor"),
+                title="Taşıma Evrakı", icon="📝", url_path="sevkiyat-editor"),
         st.Page("sayfalar/raporlar.py",
                 title="Raporlar", icon="📈"),
         st.Page("sayfalar/karisik_yukleme.py",
