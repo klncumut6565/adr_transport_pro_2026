@@ -585,3 +585,35 @@ nesnelerine dönüşüm çağıran tarafta (`firmalar_listesi()` vb.) yapılıyo
 Doğrulama: önbelleğin gerçekten düz sözlük döndürdüğü, bu sözlüklerin
 pickle.dumps ile sorunsuz serileştiği, ve çağıran tarafın doğru
 dataclass nesnesine geri çevirdiği test edildi. Suite: 238 test.
+
+
+## Düzeltme (nihai): UnserializableReturnValueError — st.cache_data tamamen kaldırıldı
+Önceki tur (düz sözlük döndürme) canlıda AYNI hatayı vermeye devam etti,
+AYNI satırda. Derinlemesine incelendi: Streamlit'in DataCache.write_result
+metodu değeri DEĞİL, `CachedResult(value, messages, main_id, sidebar_id)`
+sarmalayıcısını pickle'lıyor — sorun muhtemelen bu sarmalayıcının
+kendisinde veya Streamlit Cloud'un Python 3.14 ortamına özgü bir pickle
+davranışında; yerelde (3.12, hatta AppTest ile gerçek ScriptRunContext
+içinde bile) yeniden üretilemedi. (Önceki yerel testlerde "No runtime
+found, using MemoryCacheStorageManager" uyarısı çıkıyordu — bu ipucu bile
+takip edilip AppTest ile gerçek bağlamda tekrar denendi, yine de
+üretilemedi; sürüme özgü bir durum olduğu sonucuna varıldı.)
+
+Kesin sebebi kovalamak yerine KÖKTEN farklı bir yola geçildi:
+**st.cache_data tamamen kaldırıldı**, yerine PICKLE'A HİÇ İHTİYAÇ
+DUYMAYAN `st.session_state` tabanlı elle önbellekleme kondu
+(`sayfalar/_ortak.py:_onbellekli`). session_state canlı Python
+nesnelerini doğrudan bellekte tutar — hiçbir serileştirme adımı yok,
+dolayısıyla pickle ile ilgili hiçbir hata sınıfı bir daha oluşamaz.
+
+Mimariyle de tutarlı: her Streamlit oturumunun zaten kendi DB bağlantısı
+var (bkz. get_db() düzeltmesi), oturum başına önbellek de doğal bir
+sınır — kiracılar arası sızıntı riski yapısal olarak yok (bir oturum
+aynı anda yalnızca bir kiracıya bağlı).
+
+Doğrulama: önbelleğin ikinci çağrıda üretici fonksiyonu çalıştırmadığı,
+TTL dolunca yeniden ürettiği, farklı anahtarların karışmadığı,
+onbellek_temizle'nin doğru çalıştığı, ve gerçek PgDatabaseManager ile
+uçtan uca (DB çağrı sayacıyla) doğrulandı. Ayrıca sayfa iki kez art arda
+çalıştırılıp (widget etkileşimi taklidi) hatasız olduğu kontrol edildi.
+Suite: 240 test.

@@ -679,23 +679,88 @@ class TestTopluOkuma:
         assert db.count_chemicals() >= 2939, "hata sonrası bağlantı kullanılamaz durumda"
 
 
-class TestOnbellekliListelerVeIzolasyon:
-    """Düzeltme (Umut'un tespiti): firma/sürücü/araç seçimi DB'ye hiç
-    gitmemeli — bu listeler yalnızca yönetim sayfalarından değiştirilir.
-    sayfalar/_ortak.py'deki st.cache_data tabanlı önbellek, tenant_id'yi
-    HASHLENEN parametre olarak alır (kiracılar arası sızıntı riski
-    olmadan doğru partisyonlanır)."""
 
-    def test_ayni_kiracida_ikinci_cagri_db_ye_gitmez(self):
-        if not PG_DSN:
-            pytest.skip("ADR_PG_TEST_DSN tanımlı değil")
-        from webcore.pg import PgDatabaseManager
+
+class TestOnbellekliListelerSessionState:
+    """Düzeltme (nihai): st.cache_data, Streamlit Cloud'daki Python 3.14'te
+    UnserializableReturnValueError ile patlıyordu (pickle tabanlı önbellek
+    yazımı) — yerelde (3.12) hiçbir varyantla yeniden üretilemedi. Pickle'a
+    TAMAMEN bağımlı olmayan st.session_state tabanlı elle önbelleklemeye
+    geçildi (sayfalar/_ortak.py:_onbellekli). Bu, canlı Python nesnelerini
+    doğrudan bellekte tutar, hiçbir serileştirme yapmaz."""
+
+    def test_ayni_anahtarda_ikinci_cagri_uretici_calistirmaz(self):
+        """_onbellekli, TTL süresi dolmadan aynı anahtarla tekrar
+        çağrıldığında üretici fonksiyonu YENİDEN ÇALIŞTIRMAMALI."""
+        import streamlit as st
         import sayfalar._ortak as ort
 
-        db1 = PgDatabaseManager(PG_DSN, tenant_id=911)
-        db1.execute_update("DELETE FROM companies")
+        st.session_state.clear()
+        sayac = {"n": 0}
+        def uretici():
+            sayac["n"] += 1
+            return {"veri": "test", "cagri": sayac["n"]}
+
+        r1 = ort._onbellekli("test_anahtar", 60, uretici)
+        r2 = ort._onbellekli("test_anahtar", 60, uretici)
+        r3 = ort._onbellekli("test_anahtar", 60, uretici)
+        assert sayac["n"] == 1, "önbellek çalışmıyor, üretici her seferinde çalışıyor"
+        assert r1 == r2 == r3
+
+    def test_sure_dolunca_yeniden_uretilir(self):
+        import time
+        import streamlit as st
+        import sayfalar._ortak as ort
+
+        st.session_state.clear()
+        sayac = {"n": 0}
+        def uretici():
+            sayac["n"] += 1
+            return sayac["n"]
+
+        r1 = ort._onbellekli("kisa_sureli", 0.05, uretici)
+        time.sleep(0.1)
+        r2 = ort._onbellekli("kisa_sureli", 0.05, uretici)
+        assert sayac["n"] == 2, "TTL dolmasına rağmen yeniden üretilmedi"
+        assert r1 == 1 and r2 == 2
+
+    def test_farkli_anahtarlar_birbirini_etkilemez(self):
+        """Kiracı izolasyonu farklı bir mekanizmayla sağlanıyor artık:
+        her oturum zaten tek bir kiracıya bağlı (webcore/session.py) —
+        ama anahtara tenant_id eklenmesi yine de savunma katmanı. Burada
+        en azından farklı anahtarların birbirine karışmadığı doğrulanır."""
+        import streamlit as st
+        import sayfalar._ortak as ort
+
+        st.session_state.clear()
+        r1 = ort._onbellekli("firmalar_101", 60, lambda: ["A"])
+        r2 = ort._onbellekli("firmalar_102", 60, lambda: ["B"])
+        assert r1 == ["A"] and r2 == ["B"], "farklı anahtarlar karıştı"
+
+    def test_onbellek_temizle_anahtarlari_siler(self):
+        import streamlit as st
+        import sayfalar._ortak as ort
+
+        st.session_state.clear()
+        ort._onbellekli("firmalar_1", 60, lambda: ["eski"])
+        ort.onbellek_temizle()
+        yeni_cagrildi = ort._onbellekli("firmalar_1", 60, lambda: ["yeni"])
+        assert yeni_cagrildi == ["yeni"], "onbellek_temizle sonrası eski veri kaldı"
+
+    def test_gercek_veritabani_ile_uctan_uca(self):
+        """Gerçek PgDatabaseManager ile: firmalar_listesi() ikinci
+        çağrıda DB'ye gitmiyor mu?"""
+        if not PG_DSN:
+            pytest.skip("ADR_PG_TEST_DSN tanımlı değil")
+        import streamlit as st
+        from webcore.pg import PgDatabaseManager
         from webcore import Company
-        db1.add_company(Company(type="sender", name="ONB-TEST-911"))
+        import sayfalar._ortak as ort
+
+        st.session_state.clear()
+        gercek_db = PgDatabaseManager(PG_DSN, tenant_id=951)
+        gercek_db.execute_update("DELETE FROM companies")
+        gercek_db.add_company(Company(type="sender", name="UCTAN-UCA-951"))
 
         sayac = {"n": 0}
         orijinal = PgDatabaseManager.get_companies
@@ -704,71 +769,13 @@ class TestOnbellekliListelerVeIzolasyon:
             return orijinal(self)
         PgDatabaseManager.get_companies = sayan
         try:
-            ort._firmalar_onbellek(db1, db1.tenant_id)
-            ort._firmalar_onbellek(db1, db1.tenant_id)
-            ort._firmalar_onbellek(db1, db1.tenant_id)
-            assert sayac["n"] == 1, "önbellek çalışmıyor, her çağrı DB'ye gidiyor"
+            r1 = ort._onbellekli(f"firmalar_{gercek_db.tenant_id}", 60,
+                                 gercek_db.get_companies)
+            r2 = ort._onbellekli(f"firmalar_{gercek_db.tenant_id}", 60,
+                                 gercek_db.get_companies)
+            assert sayac["n"] == 1
+            assert [c.name for c in r1] == ["UCTAN-UCA-951"]
+            assert r1 is r2, "aynı nesne referansı dönmeli (session_state'te canlı tutuluyor)"
         finally:
             PgDatabaseManager.get_companies = orijinal
-            db1.execute_update("DELETE FROM companies")
-
-    def test_farkli_kiracilar_birbirinin_onbellegini_gormez(self):
-        """KRİTİK güvenlik testi: st.cache_data varsayılan olarak tüm
-        oturumlar arası paylaşılır — tenant_id önbellek anahtarına doğru
-        eklenmemişse bir kiracı başka bir kiracının firma listesini
-        görebilirdi."""
-        if not PG_DSN:
-            pytest.skip("ADR_PG_TEST_DSN tanımlı değil")
-        from webcore.pg import PgDatabaseManager
-        from webcore import Company
-        import sayfalar._ortak as ort
-
-        dbA = PgDatabaseManager(PG_DSN, tenant_id=921)
-        dbB = PgDatabaseManager(PG_DSN, tenant_id=922)
-        dbA.execute_update("DELETE FROM companies")
-        dbB.execute_update("DELETE FROM companies")
-        dbA.add_company(Company(type="sender", name="SADECE-921"))
-        dbB.add_company(Company(type="sender", name="SADECE-922"))
-
-        # NOT: _firmalar_onbellek artık düz sözlük listesi döndürüyor
-        # (UnserializableReturnValueError düzeltmesi — bkz. sayfalar/_ortak.py)
-        rA = ort._firmalar_onbellek(dbA, dbA.tenant_id)
-        rB = ort._firmalar_onbellek(dbB, dbB.tenant_id)
-        assert [c["name"] for c in rA] == ["SADECE-921"]
-        assert [c["name"] for c in rB] == ["SADECE-922"], \
-            "SIZINTI: kiracı 922, kiracı 921'in önbelleğini görüyor"
-        dbA.execute_update("DELETE FROM companies")
-        dbB.execute_update("DELETE FROM companies")
-
-
-class TestOnbellekPickleGuvenligi:
-    """Düzeltme: st.cache_data, dönen değeri pickle'layarak depoluyor.
-    Streamlit Cloud'daki Python 3.14'te Company/Driver/Vehicle dataclass
-    nesnelerini önbelleğe almak UnserializableReturnValueError ile
-    patlıyordu (yerelde 3.12'de yeniden üretilemedi). Çözüm: önbellekte
-    her zaman düz sözlükler tutulur, dataclass'a dönüşüm çağıran tarafta
-    yapılır — pickle için en güvenli, en basit veri türü."""
-
-    def test_onbellek_katmani_duz_sozluk_dondurur(self):
-        if not PG_DSN:
-            pytest.skip("ADR_PG_TEST_DSN tanımlı değil")
-        from webcore.pg import PgDatabaseManager
-        from webcore import Company
-        import sayfalar._ortak as ort
-
-        db = PgDatabaseManager(PG_DSN, tenant_id=941)
-        db.execute_update("DELETE FROM companies")
-        db.add_company(Company(type="sender", name="PICKLE-TEST"))
-        try:
-            ham = ort._firmalar_onbellek(db, db.tenant_id)
-            assert isinstance(ham, list) and isinstance(ham[0], dict), \
-                "önbellek artık düz sözlük döndürmeli, özel sınıf nesnesi değil"
-            import pickle
-            pickle.dumps(ham)  # pickle güvenliğinin doğrudan kanıtı
-
-            # çağıran taraf doğru şekilde Company nesnesine geri çeviriyor mu
-            nesneler = [Company(**h) for h in ham]
-            assert nesneler[0].name == "PICKLE-TEST"
-            assert isinstance(nesneler[0], Company)
-        finally:
-            db.execute_update("DELETE FROM companies")
+            gercek_db.execute_update("DELETE FROM companies")

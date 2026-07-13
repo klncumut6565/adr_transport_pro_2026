@@ -1,4 +1,6 @@
 """Sayfaların ortak yardımcıları."""
+import time
+
 import streamlit as st
 
 from webcore.session import get_db
@@ -13,89 +15,68 @@ def kullanici():
 
 
 # ── Önbellekli listeler (performans) ────────────────────────────────
-# DÜZELTME: firmalar/sürücüler/araçlar listeleri, kullanıcı bir dropdown'da
-# seçim yaptığı HER SEFERİNDE (Streamlit'in doğası gereği her widget
-# etkileşimi TÜM sayfa script'ini yeniden çalıştırır) veritabanından
-# TEKRAR çekiliyordu — oysa bu listeler yalnızca biri Firmalar/Sürücüler/
-# Araçlar sayfasından bir kayıt ekleyip/düzenleyip/silene kadar DEĞİŞMEZ.
-# "Firma seçtiğimde neden hâlâ ağa gidiliyor, hiç gitmemesi lazım" tespiti
-# doğruydu. st.cache_data ile önbelleğe alındı: seçim değişince artık
-# VERİTABANINA HİÇ GİDİLMİYOR, bellekten anında okunuyor.
-#
-# GÜVENLİK NOTU: st.cache_data varsayılan olarak TÜM oturumlar arasında
-# paylaşılan bir önbellektir. tenant_id'yi (alt çizgisiz, yani önbellek
-# anahtarına DAHİL edilen) bir parametre olarak vermek ZORUNLUDUR — aksi
-# hâlde bir kiracının firma listesi başka bir kiracıya sızabilirdi. `_db`
-# parametresi (baştaki alt çizgi) Streamlit'e bu argümanı ÖNBELLEK
-# ANAHTARINA KATMA, sadece çağırmak için kullan der (DB nesnesi zaten
-# hashlenebilir değil).
-@st.cache_data(ttl=60, show_spinner=False)
-def _firmalar_onbellek(_db, tenant_id: int) -> list:
-    # DÜZELTME: st.cache_data, dönen değeri önbellek deposuna yazarken
-    # pickle'lıyor. Company/Driver/Vehicle basit dataclass'lar olsa da
-    # Streamlit Cloud'daki Python sürümünde (3.14) bu bazen
-    # UnserializableReturnValueError ile patlıyordu (yerelde 3.12'de
-    # yeniden üretilemedi — sürüm farkı). Kesin sebebi kovalamak yerine
-    # HER ORTAMDA garanti çalışan yola geçildi: özel sınıf nesneleri
-    # yerine düz sözlükler (dataclasses.asdict) önbelleğe alınır; bunlar
-    # pickle için en güvenli, en basit veri türüdür.
-    import dataclasses
-    return [dataclasses.asdict(c) for c in _db.get_companies()]
+# DÜZELTME (2. tur): st.cache_data DENENDİ ama Streamlit Cloud'daki Python
+# 3.14'te UnserializableReturnValueError ile patlıyordu — st.cache_data
+# önbelleğe yazarken değeri PICKLE'lıyor (CachedResult sarmalayıcısı
+# içinde) ve bu, yerelde (3.12, AppTest ile bile) yeniden üretilemeyen
+# bir sürüme özgü pickle sorunuydu. Peşinden koşmak yerine PICKLE'A HİÇ
+# BAĞIMLI OLMAYAN bir yola geçildi: st.session_state tabanlı elle
+# önbellekleme. Bu, session_state'in zaten canlı Python nesnelerini
+# doğrudan bellekte tuttuğu (serileştirme YOK) için hem daha basit hem
+# daha güvenli. Ayrıca mimariyle de tutarlı: her Streamlit oturumunun
+# zaten kendi DB bağlantısı var (bkz. webcore/session.py), bu yüzden
+# oturum başına önbellek de doğal bir sınır — kiracılar arası sızıntı
+# riski YOK (bir oturum aynı anda yalnızca bir kiracıya bağlı).
+_ONBELLEK_ANAHTAR_ONEKI = "_ob_"
 
 
-@st.cache_data(ttl=60, show_spinner=False)
-def _suruculer_onbellek(_db, tenant_id: int, active_only: bool = True) -> list:
-    import dataclasses
-    return [dataclasses.asdict(s) for s in _db.get_drivers(active_only=active_only)]
-
-
-@st.cache_data(ttl=60, show_spinner=False)
-def _araclar_onbellek(_db, tenant_id: int, active_only: bool = True) -> list:
-    import dataclasses
-    return [dataclasses.asdict(a) for a in _db.get_vehicles(active_only=active_only)]
-
-
-@st.cache_data(ttl=300, show_spinner=False)
-def _tablo_a_sayisi_onbellek(_db):
-    # chemicals GLOBAL'dir (kiracıya özel değil — bkz. webcore/pg.py notu),
-    # bu yüzden tenant_id parametresi yok; gerçekten herkes için ortak.
-    # (int dönüyor, zaten sorunsuz picklenir — dönüşüm gerekmiyor.)
-    return _db.count_chemicals()
+def _onbellekli(anahtar: str, sure_saniye: float, uretici):
+    tam_anahtar = _ONBELLEK_ANAHTAR_ONEKI + anahtar
+    kayit = st.session_state.get(tam_anahtar)
+    simdi = time.time()
+    if kayit is not None and (simdi - kayit["zaman"]) < sure_saniye:
+        return kayit["veri"]
+    veri = uretici()
+    st.session_state[tam_anahtar] = {"veri": veri, "zaman": simdi}
+    return veri
 
 
 def firmalar_listesi():
-    from webcore.models import Company
     d = db()
-    return [Company(**h) for h in _firmalar_onbellek(d, d.tenant_id)]
+    return _onbellekli(f"firmalar_{d.tenant_id}", 60, d.get_companies)
 
 
 def suruculer_listesi(active_only: bool = True):
-    from webcore.models import Driver
     d = db()
-    return [Driver(**h) for h in _suruculer_onbellek(d, d.tenant_id, active_only)]
+    return _onbellekli(f"suruculer_{d.tenant_id}_{active_only}", 60,
+                       lambda: d.get_drivers(active_only=active_only))
 
 
 def araclar_listesi(active_only: bool = True):
-    from webcore.models import Vehicle
     d = db()
-    return [Vehicle(**h) for h in _araclar_onbellek(d, d.tenant_id, active_only)]
+    return _onbellekli(f"araclar_{d.tenant_id}_{active_only}", 60,
+                       lambda: d.get_vehicles(active_only=active_only))
 
 
 def tablo_a_sayisi():
-    return _tablo_a_sayisi_onbellek(db())
+    d = db()
+    return _onbellekli("tablo_a_sayisi", 300, d.count_chemicals)
 
 
 def onbellek_temizle():
     """Bir firma/sürücü/araç eklendiğinde, düzenlendiğinde veya
     silindiğinde ÇAĞRILMALI — aksi hâlde değişiklik en fazla 60 saniye
-    (TTL) boyunca diğer sayfalarda görünmez kalır."""
-    _firmalar_onbellek.clear()
-    _suruculer_onbellek.clear()
-    _araclar_onbellek.clear()
+    (TTL) boyunca bu OTURUMDA görünmez kalır (diğer oturumlar zaten
+    kendi TTL'lerine göre bağımsız tazelenir)."""
+    for k in list(st.session_state.keys()):
+        if k.startswith(_ONBELLEK_ANAHTAR_ONEKI + "firmalar_") or \
+           k.startswith(_ONBELLEK_ANAHTAR_ONEKI + "suruculer_") or \
+           k.startswith(_ONBELLEK_ANAHTAR_ONEKI + "araclar_"):
+            del st.session_state[k]
 
 
 def tablo_a_onbellek_temizle():
-    _tablo_a_sayisi_onbellek.clear()
+    st.session_state.pop(_ONBELLEK_ANAHTAR_ONEKI + "tablo_a_sayisi", None)
 
 
 def kimyasal_etiket(c) -> str:
