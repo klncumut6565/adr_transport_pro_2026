@@ -48,6 +48,16 @@ except ImportError:  # pragma: no cover
 
 from .db import DatabaseManager
 
+# Tam ADR Tablo A ~2939 kayıttır. Bu eşiğin ALTINDAKİ her durum (0 dahil,
+# ama özellikle "birkaç kayıt" gibi yarım kalmış içe aktarmalar da) EKSİK
+# sayılır. Önceki sürüm yalnızca "== 0" kontrolü yapıyordu; bu, örneğin bir
+# önceki çökme (DuplicatePreparedStatement vb.) sırasında 1 satır yazılıp
+# yarıda kesilmiş bir içe aktarmayı "dolu" sanıp hem otomatik tohumlamayı
+# hem de kullanıcıya gösterilen kurtarma butonunu SESSİZCE gizliyordu —
+# Umut'un "hâlâ gözükmüyor" dediği asıl sebep buydu (ekranda "toplam 1").
+TABLO_A_TAM_SAYI = 2939
+TABLO_A_EKSIK_ESIGI = 2000  # bunun altı "eksik/bozuk" kabul edilir
+
 # DÜZELTME (Umut'un tespiti): "chemicals" (ADR Tablo A) BURADA OLMAMALI.
 # Tablo A, yönetmeliğin herkes için aynı olan resmi verisidir — firma sırrı
 # değildir. Kiracıya özel olan, firmanın KENDİ envanteridir ve o zaten ayrı
@@ -383,8 +393,9 @@ class PgDatabaseManager(DatabaseManager):
         alanı okuyup kullanıcıya görünür bir uyarı/buton sunabilir —
         Cloud'da dosya bulunamama veya izin hatası gibi durumlar artık
         "neden boş göründüğü belirsiz" kalmaz."""
-        self.seed_bilgisi: dict = {"denendi": False}
-        if self.count_chemicals() > 0:
+        onceki_sayi = self.count_chemicals()
+        self.seed_bilgisi: dict = {"denendi": False, "onceki_sayi": onceki_sayi}
+        if onceki_sayi >= TABLO_A_EKSIK_ESIGI:
             return
         self.seed_bilgisi["denendi"] = True
         for aday in (Path(__file__).resolve().parent.parent / "ADR_A_TABLOSU.xlsx",
@@ -392,7 +403,8 @@ class PgDatabaseManager(DatabaseManager):
             if aday.exists():
                 try:
                     n = self.import_table_a_excel(str(aday))
-                    self.seed_bilgisi.update(basarili=True, kayit=n, yol=str(aday))
+                    self.seed_bilgisi.update(basarili=True, kayit=n, yol=str(aday),
+                                             sonraki_sayi=self.count_chemicals())
                 except Exception as exc:
                     self.seed_bilgisi.update(basarili=False, hata=str(exc), yol=str(aday))
                 return

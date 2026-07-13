@@ -1,6 +1,7 @@
 """Kimyasal Veritabanı — ADR Tablo A tarama/arama."""
 import streamlit as st
 from sayfalar._ortak import db
+from webcore.pg import TABLO_A_EKSIK_ESIGI
 
 st.title("🧪 Kimyasal Veritabanı")
 
@@ -28,7 +29,7 @@ if kayitlar:
          for k in kayitlar],
         use_container_width=True, hide_index=True)
 else:
-    if d.count_chemicals() > 0:
+    if d.count_chemicals() >= TABLO_A_EKSIK_ESIGI:
         st.info("Bu süzgeçle eşleşen kayıt yok.")
     else:
         # Tablo A tamamen boş: otomatik-tohumlamanın SESSİZCE başarısız

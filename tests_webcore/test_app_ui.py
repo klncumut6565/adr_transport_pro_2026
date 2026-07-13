@@ -163,3 +163,29 @@ class TestTabloABosDurumGorunurlugu:
         finally:
             n = db.import_table_a_excel("ADR_A_TABLOSU.xlsx")
             assert n > 0
+
+
+class TestTabloABozukDurumKurtarma:
+    """Umut'un yaşadığı gerçek senaryo: chemicals tamamen boş DEĞİL ama
+    çok az kayıtlı (ör. yarım kalmış içe aktarma) — eski '== 0' kontrolü
+    bunu 'dolu' sayıp hem otomatik tohumlamayı hem de kurtarma butonunu
+    gizliyordu. Artık TABLO_A_EKSIK_ESIGI ile 'eksik' kabul edilir."""
+
+    def test_bozuk_durumda_yeni_baglanti_otomatik_tamamlar(self):
+        if not PG_DSN:
+            pytest.skip("ADR_PG_TEST_DSN_APP tanımlı değil")
+        from webcore.pg import PgDatabaseManager
+        db = PgDatabaseManager(PG_DSN)
+        gercek_sayi = db.count_chemicals()
+        db.execute_update("DELETE FROM chemicals")
+        db.execute_insert(
+            "INSERT INTO chemicals (un_number, proper_shipping_name_tr, class_code) "
+            "VALUES (?, ?, ?)", ("9999", "YARIM KALMIŞ", "3"))
+        try:
+            db2 = PgDatabaseManager(PG_DSN)
+            assert db2.seed_bilgisi["basarili"] is True
+            assert db2.count_chemicals() >= gercek_sayi
+        finally:
+            db.execute_update("DELETE FROM chemicals WHERE un_number != '9999'")
+            db.import_table_a_excel("ADR_A_TABLOSU.xlsx")
+            db.execute_update("DELETE FROM chemicals WHERE proper_shipping_name_tr = 'YARIM KALMIŞ'")

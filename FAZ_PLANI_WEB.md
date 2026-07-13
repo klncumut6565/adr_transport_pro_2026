@@ -301,3 +301,25 @@ için doğrudan value değil ama init_database() sırasındaki DuplicatePrepared
 çökmesi TÜM bağlantı kurulumunu, dolayısıyla otomatik tohumlamayı da
 engelliyordu). Bu commit'ten sonra Cloud'da reboot + normal kullanım
 yeterli olmalı; Session pooler'a geçiş artık gerekli değil ama zararı da yok.
+
+
+## GERÇEK KÖK SEBEP BULUNDU: "== 0" eşiği, "1 kayıtlı bozuk" durumu yakalamıyordu
+Umut'un ekran görüntüsü kesin kanıtı verdi: "0 kayıt görüntüleniyor
+(toplam 1)". Tablo BOŞ değildi — muhtemelen önceki DuplicatePreparedStatement
+çökmesi sırasında yarıda kesilen bir içe aktarmadan kalma TEK bir bozuk
+kayıt vardı. Hem otomatik tohumlama (`_tohumla_tablo_a`) hem de UI'daki
+kurtarma butonları hep "== 0 mı?" diye soruyordu; "1" bu testten "hayır,
+dolu" diye geçiyor ve HER İKİ kurtarma mekanizması da sessizce devre dışı
+kalıyordu. Reboot bu yüzden hiçbir şeyi değiştirmiyordu.
+
+**Düzeltme:** `TABLO_A_EKSIK_ESIGI = 2000` eşiği eklendi (gerçek tam sayı
+2939). Artık "> 0" / "== 0" yerine "< 2000" kontrolü var — hem
+_tohumla_tablo_a hem sayfalar/kimyasal_veritabani.py hem
+sayfalar/sevkiyat_editor.py'de. Kanıtlandı: chemicals'ı elle 1 satıra
+düşürüp yeni bağlantı açıldığında otomatik tohumlama tetiklendi ve tablo
+sessizce 2940 kayda tamamlandı (gerçek 2939 + test artığı 1 satır —
+idempotent içe aktarma mevcut veriyi silmez, üzerine ekler).
+
+Suite: 223 test. Bu düzeltme push edildikten sonra Cloud'da reboot
+GERÇEKTEN etkili olacak — önceki reboot'lar hâlâ eski "== 0" kontrollü
+kodu çalıştırıyordu.

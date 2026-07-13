@@ -29,6 +29,7 @@ from sayfalar._ortak import db, kimyasal_etiket
 from webcore.models import Shipment, ShipmentItem, DocumentStatus
 from webcore.engines import ADREngine
 from webcore.errors import turkce_hata_metni
+from webcore.pg import TABLO_A_EKSIK_ESIGI
 
 PAKET_TURLERI = ["IBC", "Varil", "Bidon", "Kutu", "Çuval",
                   "Kompozit Ambalaj", "Tank", "Dökme"]
@@ -202,7 +203,7 @@ with sol:
     st.markdown("##### Taşınan Ürünler")
 
     with st.expander("➕ Ürün ekle", expanded=not kalemler):
-        if db().count_chemicals() == 0:
+        if db().count_chemicals() < TABLO_A_EKSIK_ESIGI:
             bilgi = getattr(db(), "seed_bilgisi", {})
             if bilgi.get("denendi") and not bilgi.get("basarili"):
                 st.error("ADR Tablo A yüklü değil — otomatik yükleme "
