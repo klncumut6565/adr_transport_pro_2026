@@ -217,6 +217,7 @@ class PgDatabaseManager(DatabaseManager):
         self.tenant_id = tenant_id
         self.db_path = dsn          # üst sınıfla alan uyumu
         self.connection = None
+        self._toplu_cursor = None  # aktif toplu-okuma cursor'u (varsa)
         self.seed_bilgisi = {"denendi": False}
         self.init_database()
 
@@ -296,6 +297,14 @@ class PgDatabaseManager(DatabaseManager):
         self.connection = None
 
     def _tenant_ile_calistir(self, fn):
+        # AKTİF BİR TOPLU OKUMA VARSA (bkz. toplu_okuma()), yeni bir
+        # transaction açmak yerine o AÇIK transaction'ı paylaşır — sayfa
+        # yüklemede art arda çok sayıda bağımsız SELECT atılırken her
+        # birinin kendi BEGIN/SET LOCAL/COMMIT'ini açması ciddi gecikmeye
+        # yol açıyordu ("firma seçiminde 1-2 sn donma" şikâyeti; 4-5 sorgu
+        # x 4 ağ gidiş-gelişi = 16-20 round-trip tek bir sayfa yenilemesinde).
+        if self._toplu_cursor is not None:
+            return fn(self._toplu_cursor)
         try:
             with self._tenanted_cursor(self._get_conn()) as cur:
                 return fn(cur)
@@ -304,6 +313,34 @@ class PgDatabaseManager(DatabaseManager):
             self._kopar_ve_yeniden_baglan()
             with self._tenanted_cursor(self._get_conn()) as cur:
                 return fn(cur)
+
+    @contextmanager
+    def toplu_okuma(self):
+        """Birden fazla execute*() çağrısını TEK bir transaction'da (tek
+        SET LOCAL, tek BEGIN/COMMIT) birleştirir. Sayfa başında art arda
+        birçok bağımsız liste çekilirken (ör. firmalar+sürücüler+araçlar+
+        sevkiyat+kalemler) kullanılır:
+
+            with d.toplu_okuma():
+                firmalar = d.get_companies()
+                suruculer = d.get_drivers()
+                araclar = d.get_vehicles()
+
+        Yalnızca OKUMA (SELECT) amaçlıdır — içeride bir hata olursa blok
+        kendi kendini onaran yeniden bağlanmayı DENEMEZ (nadir durum;
+        hata olduğu gibi yükselir, çağıran normal şekilde ele alır).
+        PgBouncer transaction modu açısından da doğru davranış: ilişkili
+        okumalar TEK transaction'da olduğu için hepsi aynı arka-uçta yürür.
+        """
+        conn = self._get_conn()
+        with conn.transaction():
+            with conn.cursor() as cur:
+                cur.execute(f"SET LOCAL app.tenant_id = {int(self.tenant_id)}")
+                self._toplu_cursor = cur
+                try:
+                    yield
+                finally:
+                    self._toplu_cursor = None
 
     def execute(self, query: str, params: tuple = ()) -> List[dict]:
         def _f(cur):

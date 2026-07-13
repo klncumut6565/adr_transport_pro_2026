@@ -505,3 +505,34 @@ TÜM alanları gösteren bir detay kartı açılıyor.
 Doğrulama: sayfa başlangıçta hiçbir tablo göstermiyor (yalnızca "aramak
 için en az 2 karakter" mesajı), eski text_input tamamen kalktı, "1993"
 araması 6 doğru sonuç veriyor. Suite: 232 test.
+
+
+## Düzeltme (2. tur): "1-2 sn donma" hâlâ devam ediyordu — asıl sebep bulundu
+Önceki turdaki düzeltme (5 gereksiz tek-kayıt sorgusunu kaldırma) doğruydu
+ama sorunun küçük bir kısmıydı. Asıl büyük israf: sayfa her yenilendiğinde
+(her seçimde) firmalar/sürücüler/araçlar/kimyasal-sayısı için 4 AYRI sorgu
+atılıyordu, her biri KENDİ transaction'ını (BEGIN+SET LOCAL+SORGU+COMMIT
+= 4 ağ gidiş-gelişi) açıyordu — toplam 16 gidiş-geliş, TEK bir sayfa
+yenilemesinde. Streamlit Cloud → Supabase arası gerçek internet
+gecikmesinde (~50-100ms/gidiş-geliş) bu, tam da bildirilen "1-2 saniye"
+donmasını açıklıyor.
+
+Düzeltme: `webcore/pg.py` → `toplu_okuma()` context manager'ı. Birden
+fazla execute*() çağrısını TEK transaction'da (tek SET LOCAL, tek BEGIN/
+COMMIT) birleştiriyor:
+    with d.toplu_okuma():
+        firmalar = d.get_companies()
+        suruculer = d.get_drivers()
+        araclar = d.get_vehicles()
+        sayi = d.count_chemicals()
+`_tenant_ile_calistir`, aktif bir toplu okuma varsa yeni transaction
+açmak yerine onu paylaşıyor. `sayfalar/sevkiyat_editor.py`'de hem ana
+liste yükleme (firmalar+sürücüler+araçlar+kimyasal sayısı) hem de
+sevkiyat yükleme (`_yukle`: sevkiyat+kalemler) toplu_okuma'ya alındı —
+16 gidiş-geliş → 6'ya indi (yaklaşık 2.7 kat azalma; PgBouncer transaction
+modu açısından da doğru, ilişkili okumalar tek transaction'da aynı
+arka-uçta yürüyor).
+
+Doğrulama: doğru veri döndüğü, blok dışında normal çalıştığı, blok
+içinde hata olursa cursor referansının temiz kapandığı (sızıntı yok)
+test edildi. Suite: 235 test.

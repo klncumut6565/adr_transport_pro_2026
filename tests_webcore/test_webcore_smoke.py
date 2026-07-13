@@ -626,3 +626,54 @@ class TestKendiKendiniOnaranBaglanti:
 
         with pytest.raises(ValueError):
             db._tenant_ile_calistir(patlar)
+
+
+class TestTopluOkuma:
+    """Düzeltme: sayfa yüklemede art arda çok sayıda bağımsız sorgu her
+    biri kendi transaction'ını açıyordu (4 ağ gidiş-gelişi x N sorgu) —
+    'firma seçiminde 1-2 sn donma' şikâyeti tekrarlandı. toplu_okuma()
+    birden fazla execute*() çağrısını TEK transaction'da birleştirir."""
+
+    def test_toplu_okuma_dogru_veri_dondurur(self):
+        if not PG_DSN:
+            pytest.skip("ADR_PG_TEST_DSN tanımlı değil")
+        from webcore.pg import PgDatabaseManager
+        from webcore import Company
+        db = PgDatabaseManager(PG_DSN)
+        db.execute_update("DELETE FROM companies")
+        db.add_company(Company(type="sender", name="TOPLU-1"))
+        db.add_company(Company(type="receiver", name="TOPLU-2"))
+
+        with db.toplu_okuma():
+            firmalar = db.get_companies()
+            sayi = db.count_chemicals()
+        assert {c.name for c in firmalar} == {"TOPLU-1", "TOPLU-2"}
+        assert sayi >= 2939
+        db.execute_update("DELETE FROM companies")
+
+    def test_toplu_okuma_disinda_normal_calisir(self):
+        """toplu_okuma bloğu kapandıktan sonra normal (tek transaction'lı)
+        sorgular yine sorunsuz çalışmalı — _toplu_cursor sızıntısı olmamalı."""
+        if not PG_DSN:
+            pytest.skip("ADR_PG_TEST_DSN tanımlı değil")
+        from webcore.pg import PgDatabaseManager
+        db = PgDatabaseManager(PG_DSN)
+        with db.toplu_okuma():
+            db.count_chemicals()
+        assert db._toplu_cursor is None
+        # blok dışında normal çalışıyor mu
+        assert db.count_chemicals() >= 2939
+
+    def test_toplu_okuma_icinde_hata_temiz_kapanir(self):
+        if not PG_DSN:
+            pytest.skip("ADR_PG_TEST_DSN tanımlı değil")
+        from webcore.pg import PgDatabaseManager
+        db = PgDatabaseManager(PG_DSN)
+        try:
+            with db.toplu_okuma():
+                db.count_chemicals()
+                raise ValueError("kasıtlı test hatası")
+        except ValueError:
+            pass
+        assert db._toplu_cursor is None
+        assert db.count_chemicals() >= 2939, "hata sonrası bağlantı kullanılamaz durumda"

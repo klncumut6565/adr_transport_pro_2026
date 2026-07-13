@@ -87,7 +87,9 @@ def _bos_sevkiyat() -> dict:
 
 def _yukle(shipment_id: int):
     d = db()
-    s = d.get_shipment(shipment_id)
+    with d.toplu_okuma():
+        s = d.get_shipment(shipment_id)
+        kalemler = d.get_shipment_items(shipment_id) if s else []
     if s is None:
         st.error("Sevkiyat bulunamadı.")
         st.session_state["editor_sevkiyat"] = _bos_sevkiyat()
@@ -107,7 +109,6 @@ def _yukle(shipment_id: int):
         "vehicle_id": s.vehicle_id, "exemption_type": s.exemption_type,
         "notes": s.notes,
     }
-    kalemler = d.get_shipment_items(shipment_id)
     st.session_state["editor_kalemler"] = [dict(vars(k)) for k in kalemler]
 
 
@@ -135,11 +136,17 @@ if st.button("← Sevkiyatlar listesine dön"):
     st.switch_page("sayfalar/sevkiyatlar.py")
 
 d = db()
-firmalar = d.get_companies()
+# DÜZELTME (performans): bu 3 sorgu ayrı ayrı çağrılınca her biri kendi
+# transaction'ını (BEGIN+SET LOCAL+SORGU+COMMIT) açıyor, her seçimde
+# sayfa yenilenince toplamda 12+ ağ gidiş-gelişine mal oluyordu — "firma
+# seçiminde 1-2 sn donma" şikâyetinin asıl sebebi. toplu_okuma() ile TEK
+# transaction'da birleştirildi.
+with d.toplu_okuma():
+    firmalar = d.get_companies()
+    suruculer = d.get_drivers(active_only=True)
+    araclar = d.get_vehicles(active_only=True)
 firma_secenekleri = {0: "— Seçilmedi —"} | {c.id: c.name for c in firmalar}
-suruculer = d.get_drivers(active_only=True)
 surucu_secenekleri = {0: "— Seçilmedi —"} | {s.id: s.full_name for s in suruculer}
-araclar = d.get_vehicles(active_only=True)
 arac_secenekleri = {0: "— Seçilmedi —"} | {a.id: a.plate for a in araclar}
 
 
