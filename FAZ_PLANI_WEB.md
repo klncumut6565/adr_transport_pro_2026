@@ -169,3 +169,30 @@ Uyku sorunu: GitHub Actions keep-alive (Faz 5'te .github/workflows/keepalive.yml
   migrasyon eklendi: her açılışta chemicals üzerindeki UNIQUE kısıtları
   pg_constraint'ten bulunup düşürülür. Kanıt: kısıt elle geri konup init
   koşuldu -> kısıt yok, içe aktarma 2939 tam, UN1133 6 varyant.
+
+
+## Mimari düzeltme (Umut'un tespiti üzerine): Tablo A global, envanter kiracıya özel
+Umut'un "Ürün ekle'de Tablo A verisi neden yok, ben bunun gömülü kalmasını
+istemiştim" sorusu üç ayrı hatayı ortaya çıkardı:
+
+1. **chemicals (ADR Tablo A) yanlışlıkla TENANT_TABLES'taydı.** Tablo A
+   yönetmeliğin herkes için aynı olan resmi verisi, firma sırrı değil.
+   Kiracıya kilitlenince her yeni kiracı Tablo A'yı BOŞ görüyordu.
+   → chemicals TENANT_TABLES'tan çıkarıldı; RLS/politika/FORCE RLS
+   canlıda kurulmuşsa kendi kendini iyileştirerek söker.
+2. **Otomatik tohumlama eklendi:** chemicals boşsa, repoyla gelen
+   ADR_A_TABLOSU.xlsx'ten PgDatabaseManager.init_database() içinde
+   otomatik yüklenir (webcore/pg.py:_tohumla_tablo_a). Artık kimse elle
+   yüklemek zorunda değil — tam da istenen "gömülü" davranış.
+3. **Denetim sırasında ayrı bir gerçek hata bulundu:** company_products
+   (FİRMAYA özel envanter, Ayarlar'dan yüklenen) hiçbir zaman
+   TENANT_TABLES'ta OLMAMIŞTI — Faz 1'den beri izolasyonsuzdu, farklı
+   kiracıların aynı ürün+UN+sınıf kombinasyonu birbirinin üzerine
+   yazabilirdi (ON CONFLICT tenant_id'siz kısıt üzerinden). Eklendi;
+   UNIQUE kısıtı da tenant_id dahil edecek şekilde göçürüldü
+   (kendi kendini iyileştiren migrasyon, üçüncü örnek).
+Üçü de canlı (önceden dağıtılmış) şema üzerinde test edildi: eski RLS'li
+chemicals + tenant_id'siz company_products durumundan başlanıp yeni koda
+geçildiğinde hatasız kendini onardı. Regresyon testleri:
+TestTabloAKuresel (paylaşım + otomatik tohumlama), company_products
+izolasyon testi (aynı ürün bilgisiyle çakışma senaryosu). Suite: 219 test.

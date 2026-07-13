@@ -47,15 +47,27 @@ except ImportError:  # pragma: no cover
 
 from .db import DatabaseManager
 
+# DÜZELTME (Umut'un tespiti): "chemicals" (ADR Tablo A) BURADA OLMAMALI.
+# Tablo A, yönetmeliğin herkes için aynı olan resmi verisidir — firma sırrı
+# değildir. Kiracıya özel olan, firmanın KENDİ envanteridir ve o zaten ayrı
+# bir tabloda: company_products (Ayarlar → "Firma Kimyasal Envanteri").
+# chemicals'ı kiracıya kilitlemek, her yeni kiracının Tablo A'yı BOŞ görüp
+# elle yeniden yüklemesi gerektiği anlamına geliyordu — istenen bu değildi.
+# DÜZELTME 2 (aynı denetimde bulundu): "company_products" (firmaya özel
+# envanter — Ayarlar'dan ASUTEK vb. formatta yüklenen) baştan beri BU
+# LİSTEDE YOKTU, yani hiç kiracı izolasyonu almamıştı. chemicals'ın aksine
+# bu GERÇEKTEN firmaya özeldir ve izole olmalıydı; eklendi.
 TENANT_TABLES = (
-    "companies", "drivers", "vehicles", "chemicals",
+    "companies", "drivers", "vehicles", "company_products",
     "shipments", "shipment_items", "settings",
 )
 
 # INSERT OR REPLACE için tablo → benzersiz kısıt kolonları (şemadan doğrulandı)
 _UPSERT_KEYS = {
     "settings": "key",                                              # PRIMARY KEY
-    "company_products": "trade_name, un_number, classification_code",  # UNIQUE(...)
+    # tenant_id başa eklendi: aksi hâlde iki farklı firmanın aynı
+    # ürün+UN+sınıf kombinasyonu birbirinin envanterinin üzerine yazardı.
+    "company_products": "tenant_id, trade_name, un_number, classification_code",
     "packaging_types": "code",                                      # UNIQUE
 }
 
@@ -266,7 +278,30 @@ class PgDatabaseManager(DatabaseManager):
                 WHERE conrelid = 'chemicals'::regclass AND contype = 'u'""")
             for row in cur.fetchall():
                 cur.execute(f'ALTER TABLE chemicals DROP CONSTRAINT "{row["conname"]}"')
+
+            # MİGRASYON (kendi kendini iyileştirir, 2. sınıf): önceki
+            # sürümlerde chemicals TENANT_TABLES içindeydi ve üzerinde RLS +
+            # tenant_izolasyon politikası kurulmuştu. Artık global olduğu
+            # için canlıda kalmış olabilecek bu kısıtları söker.
+            cur.execute("""
+                SELECT 1 FROM pg_tables
+                WHERE tablename = 'chemicals' AND rowsecurity""")
+            if cur.fetchone():
+                cur.execute("DROP POLICY IF EXISTS tenant_izolasyon ON chemicals")
+                cur.execute("ALTER TABLE chemicals NO FORCE ROW LEVEL SECURITY")
+                cur.execute("ALTER TABLE chemicals DISABLE ROW LEVEL SECURITY")
+
             for t in TENANT_TABLES:
+                # MİGRASYON (3. kendi kendini iyileştiren adım): tablo daha
+                # önce (bu, TENANT_TABLES'a eklenmeden önce) oluşturulmuşsa
+                # CREATE TABLE IF NOT EXISTS ona dokunmaz; tenant_id kolonu
+                # hiç eklenmemiş olabilir. Yoksa şimdi eklenir.
+                cur.execute("""
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name = %s AND column_name = 'tenant_id'""", (t,))
+                if not cur.fetchone():
+                    cur.execute(f"ALTER TABLE {t} ADD COLUMN tenant_id "
+                               f"BIGINT NOT NULL DEFAULT 1")
                 cur.execute(f"CREATE INDEX IF NOT EXISTS idx_{t}_tenant "
                             f"ON {t}(tenant_id)")
                 # Yeni satırlar otomatik olarak aktif kiracıya yazılsın
@@ -283,6 +318,62 @@ class PgDatabaseManager(DatabaseManager):
                     f"CREATE POLICY tenant_izolasyon ON {t} "
                     f"USING (tenant_id = COALESCE(NULLIF(current_setting('app.tenant_id', true), '')::bigint, 1)) "
                     f"WITH CHECK (tenant_id = COALESCE(NULLIF(current_setting('app.tenant_id', true), '')::bigint, 1))")
+
+        self._tohumla_tablo_a()
+        self._goc_company_products_tenant_kisit(conn)
+
+    def _goc_company_products_tenant_kisit(self, conn) -> None:
+        """company_products üzerindeki UNIQUE(trade_name, un_number,
+        classification_code) kısıtı tenant_id İÇERMİYORDU — bu, farklı
+        kiracıların aynı ürün+UN+sınıf kombinasyonuna sahip envanter
+        satırlarının birbirinin üzerine ON CONFLICT ile yazılabileceği
+        anlamına geliyordu. Kendi kendini iyileştirir: eski (tenant_id'siz)
+        kısıtı bulup tenant_id dahil olanla değiştirir."""
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT c.conname, array_agg(a.attname ORDER BY a.attnum) AS kolonlar
+                FROM pg_constraint c
+                JOIN unnest(c.conkey) WITH ORDINALITY AS k(attnum, ord) ON true
+                JOIN pg_attribute a ON a.attnum = k.attnum
+                    AND a.attrelid = c.conrelid
+                WHERE c.conrelid = 'company_products'::regclass AND c.contype = 'u'
+                GROUP BY c.conname""")
+            for row in cur.fetchall():
+                if "tenant_id" not in row["kolonlar"]:
+                    cur.execute(f'ALTER TABLE company_products '
+                               f'DROP CONSTRAINT "{row["conname"]}"')
+            cur.execute("""
+                SELECT 1 FROM pg_constraint
+                WHERE conrelid = 'company_products'::regclass AND contype = 'u'
+                AND conname = 'company_products_tenant_uniq'""")
+            if not cur.fetchone():
+                cur.execute(
+                    "ALTER TABLE company_products ADD CONSTRAINT "
+                    "company_products_tenant_uniq UNIQUE "
+                    "(tenant_id, trade_name, un_number, classification_code)")
+
+    def _tohumla_tablo_a(self) -> None:
+        """ADR Tablo A boşsa, repoyla birlikte gelen dosyadan otomatik
+        yükler (Umut'un niyeti: Tablo A gömülü gelsin, elle yüklenmesin;
+        elle yükleme yalnız FİRMAYA özel envanter için — Ayarlar sayfası).
+        Dosya bulunamazsa veya tablo zaten doluysa sessizce geçilir; bu,
+        her uygulama açılışında (st.cache_resource sayesinde pratikte tek
+        seferlik) çalışan ucuz bir kontroldür."""
+        if self.count_chemicals() > 0:
+            return
+        for aday in (Path(__file__).resolve().parent.parent / "ADR_A_TABLOSU.xlsx",
+                    Path("ADR_A_TABLOSU.xlsx")):
+            if aday.exists():
+                try:
+                    n = self.import_table_a_excel(str(aday))
+                    import logging
+                    logging.getLogger(__name__).info(
+                        "ADR Tablo A otomatik yüklendi: %d kayıt", n)
+                except Exception as exc:  # tohumlama asla açılışı engellemez
+                    import logging
+                    logging.getLogger(__name__).warning(
+                        "ADR Tablo A otomatik yükleme başarısız: %s", exc)
+                return
 
     # ── Pg'de anlamsız kalan sqlite işlevleri ────────────────────────
     def get_top_senders(self, limit=10, year=None) -> list:

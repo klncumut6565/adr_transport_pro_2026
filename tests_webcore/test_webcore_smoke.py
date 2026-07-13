@@ -396,3 +396,50 @@ class TestFaz6MigrasyonVeYedek:
         zf = zipfile.ZipFile(z)
         adlar = zf.namelist()
         assert "chemicals.csv" in adlar and "YEDEK_BILGI.txt" in adlar
+
+
+class TestTabloAKuresel:
+    """Düzeltme: ADR Tablo A gömülü ve TÜM kiracılar için ortak olmalı;
+    firmaya özel envanter (company_products) ise kiracıya özel kalmalı."""
+
+    def test_otomatik_tohumlama_ve_paylasim(self, tmp_path):
+        if not PG_DSN:
+            pytest.skip("ADR_PG_TEST_DSN tanımlı değil")
+        import os
+        if not os.path.exists("ADR_A_TABLOSU.xlsx"):
+            pytest.skip("Tablo A dosyası yok")
+        from webcore.pg import PgDatabaseManager, TENANT_TABLES
+        assert "chemicals" not in TENANT_TABLES
+        assert "company_products" in TENANT_TABLES
+
+        db1 = PgDatabaseManager(PG_DSN, tenant_id=1)
+        n1 = db1.count_chemicals()
+        assert n1 > 0, "Tablo A otomatik tohumlanmadı"
+
+        db2 = PgDatabaseManager(PG_DSN, tenant_id=987654)  # önceden hiç görülmemiş kiracı
+        assert db2.count_chemicals() == n1, "farklı kiracı aynı Tablo A'yı görmüyor"
+        assert db2.search_chemicals("1203"), "yeni kiracı UN1203'ü arayamıyor"
+
+    def test_company_products_izolasyonu(self):
+        if not PG_DSN:
+            pytest.skip("ADR_PG_TEST_DSN tanımlı değil")
+        from webcore.pg import PgDatabaseManager
+        dbA = PgDatabaseManager(PG_DSN, tenant_id=111)
+        dbB = PgDatabaseManager(PG_DSN, tenant_id=222)
+        dbA.execute_update("DELETE FROM company_products")
+        dbB.execute_update("DELETE FROM company_products")
+        # iki kiracı AYNI ürün+UN+sınıf kombinasyonunu yüklesin (çakışma senaryosu)
+        dbA.execute_insert(
+            "INSERT INTO company_products (company_name, trade_name, "
+            "un_number, classification_code) VALUES (?, ?, ?, ?)",
+            ("FIRMA-A", "ORTAK ÜRÜN", "1203", "F1"))
+        dbB.execute_insert(
+            "INSERT INTO company_products (company_name, trade_name, "
+            "un_number, classification_code) VALUES (?, ?, ?, ?)",
+            ("FIRMA-B", "ORTAK ÜRÜN", "1203", "F1"))
+        gA = [r["company_name"] for r in dbA.execute("SELECT company_name FROM company_products")]
+        gB = [r["company_name"] for r in dbB.execute("SELECT company_name FROM company_products")]
+        assert gA == ["FIRMA-A"], f"izolasyon bozuk: {gA}"
+        assert gB == ["FIRMA-B"], f"izolasyon bozuk: {gB}"
+        dbA.execute_update("DELETE FROM company_products")
+        dbB.execute_update("DELETE FROM company_products")

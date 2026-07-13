@@ -77,9 +77,12 @@ st.divider()
 
 # ── ADR Tablo A içe aktarma ───────────────────────────────────────────
 st.subheader("📥 ADR Tablo A İçe Aktarma")
-st.caption(f"Kimyasal veritabanında şu an **{d.count_chemicals()}** kayıt var. "
-           "İçe aktarma mevcut kayıtların ÜZERİNE ekler; temiz yükleme için "
-           "önce aşağıdan tabloyu boşaltın.")
+st.caption(f"Tablo A uygulamayla birlikte **gömülü** gelir ve tüm firmalar "
+           f"için ortaktır (herkes aynı resmi veriyi görür) — normal "
+           f"kullanımda burayı hiç açmanıza gerek yoktur. Şu an "
+           f"**{d.count_chemicals()}** kayıt yüklü. Bu bölüm yalnızca ADR "
+           f"yönetmeliği güncellendiğinde yeni Tablo A dosyasıyla elle "
+           f"güncelleme yapmak içindir.")
 xlsx = st.file_uploader("ADR_A_TABLOSU.xlsx dosyasını seçin", type=["xlsx"],
                         key="tabloa")
 if xlsx is not None and st.button("🚀 İçe aktarmayı başlat", type="primary"):
@@ -96,8 +99,9 @@ if xlsx is not None and st.button("🚀 İçe aktarmayı başlat", type="primary
         Path(yol).unlink(missing_ok=True)
 
 with st.expander("⚠️ Tehlikeli bölge: kimyasal tablosunu boşalt"):
-    st.warning("Bu işlem bu kiracıya ait TÜM kimyasal kayıtlarını siler. "
-               "Sevkiyat ürünleri etkilenmez (kopya alanlar üründe saklıdır).")
+    st.warning("Bu işlem TÜM firmalar için ortak olan Tablo A kayıtlarını "
+               "siler (yalnız bu firmaya özel değil). Sevkiyat ürünleri "
+               "etkilenmez (kopya alanlar üründe saklıdır).")
     onay = st.text_input("Onay için 'SİL' yazın")
     if st.button("Kimyasal tablosunu boşalt", disabled=(onay != "SİL")):
         d.execute_update("DELETE FROM chemicals")
