@@ -223,32 +223,31 @@ with sol:
                         st.error(f"Yükleme başarısız: {turkce_hata_metni(exc)}")
                 else:
                     st.error("ADR_A_TABLOSU.xlsx dosyası bulunamadı.")
-        # DÜZELTME: eski st.text_input + st.selectbox ikilisi iki sorun
-        # yaratıyordu — (1) text_input Streamlit'te varsayılan olarak
-        # yalnızca Enter'a basınca/odak kaybedince tetiklenir, her tuş
-        # vuruşunda değil; (2) selectbox kapalı bir açılır kutudur, tüm
-        # eşleşmeleri alt alta GÖSTERMEZ, tek satırlık görünür. Bunun
-        # yerine st.dataframe'in YERLEŞİK arama araç çubuğu kullanılıyor:
-        # tamamen istemci tarafında (tarayıcıda) çalışır, sunucuya gitmeden
-        # HER TUŞ VURUŞUNDA anında filtreler — masaüstü uygulamasındaki
-        # canlı arama hissine en yakın yerleşik Streamlit özelliği budur.
-        _liste = db().get_all_chemicals(limit=3000)
-        if _liste:
-            st.caption("Tabloyu daraltmak için sağ üstteki 🔍 simgesine "
-                      "tıklayıp yazın (anında filtreler); bir satıra "
-                      "tıklayarak seçin.")
-            _secim = st.dataframe(
-                [{"UN No": k.un_number, "Ad": k.proper_shipping_name_tr,
-                  "Sınıf": k.class_code, "PG": k.packing_group,
-                  "Tünel": k.tunnel_code, "TK": k.transport_category}
-                 for k in _liste],
-                use_container_width=True, hide_index=True, height=280,
-                on_select="rerun", selection_mode="single-row",
-                key="urun_ekle_tablosu")
-            secili_satirlar = _secim.selection.rows if _secim and _secim.selection else []
-            secili = _liste[secili_satirlar[0]] if secili_satirlar else None
-        else:
-            secili = None
+        # DÜZELTME 2: st.dataframe + yerleşik arama araç çubuğu yaklaşımı
+        # da yanlış çıktı — TÜM Tablo A'yı (binlerce satır) varsayılan
+        # olarak ekrana döküyordu, oysa istenen tam tersiydi: yazana kadar
+        # HİÇBİR ŞEY görünmesin, yazınca YALNIZCA eşleşenler (ör. "1993"
+        # için ~6 sonuç) listelensin. Streamlit'in kendi text_input'u bunu
+        # yapamıyor (Enter/blur gerektirir). Bunun için özel olarak
+        # tasarlanmış streamlit-searchbox bileşenine geçildi: her tuş
+        # vuruşunda arka planda search_chemicals()'ı çağırır, dönen
+        # eşleşmeleri açılır bir liste olarak gösterir — Enter YOK,
+        # tüm tablo YOK, yalnızca o anki eşleşmeler.
+        from streamlit_searchbox import st_searchbox
+
+        def _kimyasal_ara(terim: str):
+            if not terim or len(terim) < 2:
+                return []
+            return [(kimyasal_etiket(k), k)
+                   for k in db().search_chemicals(terim, limit=20)]
+
+        secili = st_searchbox(
+            _kimyasal_ara,
+            key="urun_arama_kutusu",
+            placeholder="UN numarası veya madde adı yazın (ör. 1993 veya benzin)...",
+            clear_on_submit=True,
+            default=None,
+        )
         bulunanlar = [secili] if secili else []
         if bulunanlar:
             st.success(f"Seçili: {kimyasal_etiket(secili)}")
@@ -277,8 +276,8 @@ with sol:
                 })
                 st.session_state["editor_kalemler"] = kalemler
                 st.rerun()
-        elif _liste:
-            st.caption("Tablodan bir satıra tıklayarak ürün seçin.")
+        elif secili is None:
+            st.caption("Aramak için en az 2 karakter yazın.")
 
     if kalemler:
         hc1, hc2, hc3, hc4, hc5 = st.columns([1, 3, 1.2, 2, 0.6])

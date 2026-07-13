@@ -192,12 +192,14 @@ class TestTabloABozukDurumKurtarma:
 
 
 class TestUrunEkleCanliArama:
-    """Düzeltme: text_input+selectbox ikilisi hem Enter gerektiriyordu
-    hem de tüm sonuçları alt alta göstermiyordu (selectbox kapalı tek
-    satır). st.dataframe'in yerleşik arama araç çubuğuna (istemci
-    tarafında, anında filtreleyen) geçildi."""
+    """Düzeltme (2. tur, Umut'un geri bildirimiyle): tüm Tablo A'yı
+    varsayılan gösteren dataframe yaklaşımı da YANLIŞTI — istenen, yazana
+    kadar hiçbir şey görünmemesi, yazınca YALNIZCA eşleşenlerin (ör.
+    '1993' için ~6 sonuç) listelenmesiydi. streamlit-searchbox'a geçildi:
+    her tuş vuruşunda arka planda search_chemicals() çağrılan, Enter
+    gerektirmeyen, yalnızca eşleşmeleri gösteren gerçek canlı arama."""
 
-    def test_sayfa_hatasiz_render_ve_liste_var(self):
+    def test_sayfa_hatasiz_render(self):
         if not PG_DSN:
             pytest.skip("ADR_PG_TEST_DSN_APP tanımlı değil")
         from streamlit.testing.v1 import AppTest
@@ -207,6 +209,19 @@ class TestUrunEkleCanliArama:
                                    "role": "admin", "full_name": "U"}
         t.run()
         assert not t.exception
-        # eski selectbox tabanlı arama tamamen kalkmış olmalı
+        # eski yaklaşımların hiçbiri kalmamalı: ne tüm-tablo dataframe'i
+        # ne de Enter gerektiren düz text_input arama kutusu
         assert not any("UN numarası veya madde adı" in ti.label for ti in t.text_input)
-        assert len(t.dataframe) >= 1, "ürün listesi tablosu render olmadı"
+
+    def test_arama_fonksiyonu_un1993_icin_sadece_eslesenleri_dondurur(self):
+        """Umut'un birebir verdiği örnek: UN 1993 için tüm Tablo A değil,
+        yalnızca gerçekten eşleşen ~6 kayıt dönmeli."""
+        if not PG_DSN:
+            pytest.skip("ADR_PG_TEST_DSN tanımlı değil")
+        from webcore.pg import PgDatabaseManager
+        db = PgDatabaseManager(PG_DSN)
+        sonuclar = db.search_chemicals("1993", limit=20)
+        assert 0 < len(sonuclar) < 20, \
+            "arama ya hiç sonuç vermiyor ya da filtrelemeden tüm tabloyu döndürüyor"
+        assert all(s.un_number == "1993" for s in sonuclar), \
+            "eşleşmeyen kayıtlar da dönüyor"

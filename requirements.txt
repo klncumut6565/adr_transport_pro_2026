@@ -5,3 +5,4 @@ psycopg[binary]>=3.1
 rapidfuzz>=3.0
 openpyxl>=3.1
 weasyprint>=61
+streamlit-searchbox>=0.1.20

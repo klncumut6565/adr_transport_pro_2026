@@ -400,3 +400,28 @@ kalktı, ürün listesi tablosu render oluyor. (Not: AppTest test aracı
 dataframe satır tıklamasını simüle edemiyor — segfault veriyor, bu test
 aracının kendi kısıtı; seçim mantığı Streamlit'in resmi/belgelenmiş
 on_select API'sini birebir kullanıyor.) Suite: 225 test (+1 yeni).
+
+
+## Düzeltme (2. tur): önceki dataframe çözümü de yanlıştı
+Umut'un ilk düzeltmemi ("st.dataframe + yerleşik arama araç çubuğu")
+reddetmesi haklıydı: bu, TÜM Tablo A'yı (2939 satır) varsayılan olarak
+gösteriyordu — istenenin tam tersi. Asıl istek netti: yazana kadar hiçbir
+şey görünmesin, "1993" yazınca yalnızca gerçekten eşleşen ~6 kayıt
+listelensin, Enter gerekmesin.
+
+Streamlit'in kendi widget'larıyla (text_input: Enter/blur gerektirir;
+selectbox: kapalı tek satır; dataframe: ya hep-göster ya hiç-göster) bu
+tam olarak karşılanamıyor — bunun için özel tasarlanmış bir bileşen var:
+`streamlit-searchbox` (m-wrzr/streamlit-searchbox, PyPI). Her tuş
+vuruşunda arka planda verilen Python fonksiyonunu (burada
+search_chemicals) çağırıp sonuçları açılır bir liste olarak gösterir —
+Enter yok, tüm tablo yok, yalnızca o anki eşleşmeler.
+
+requirements.txt'e eklendi. `sayfalar/sevkiyat_editor.py`'deki Ürün Ekle
+artık `st_searchbox(_kimyasal_ara, ...)` kullanıyor; `_kimyasal_ara`
+2 karakter altında boş liste döner (gürültü olmasın), üstünde
+`db().search_chemicals(terim, limit=20)` çağırıp (etiket, Chemical nesnesi)
+ikilileri döner.
+
+Doğrulama: gerçek "1993" senaryosu — 6 sonuç, hepsi UN1993 (tabloyu
+filtresiz göstermiyor). Suite: 227 test.
