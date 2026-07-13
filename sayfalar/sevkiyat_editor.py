@@ -309,20 +309,68 @@ with sol:
             st.caption("Aramak için en az 2 karakter yazın.")
 
     if kalemler:
-        hc1, hc2, hc3, hc4, hc5 = st.columns([1, 3, 1.2, 2, 0.6])
+        hc1, hc2, hc3, hc4, hc5, hc6 = st.columns([1, 3, 1.2, 2, 0.6, 0.6])
         hc1.caption("UN No"); hc2.caption("Teknik İsim"); hc3.caption("Sınıf/PG")
-        hc4.caption("Ambalaj / Miktar"); hc5.caption("")
+        hc4.caption("Ambalaj / Miktar"); hc5.caption(""); hc6.caption("")
+        duzenlenen_i = st.session_state.get("kalem_duzenle_i")
         for i, k in enumerate(kalemler):
-            c1, c2, c3, c4, c5 = st.columns([1, 3, 1.2, 2, 0.6])
+            if duzenlenen_i == i:
+                # DÜZELTME (Umut'un talebi): mevcut bir kalem artık SİLİP
+                # YENİDEN EKLEMEK zorunda kalmadan yerinde düzenlenebiliyor.
+                # Kimyasal (UN/ad/sınıf) değiştirilemez — o değişecekse zaten
+                # silip doğru kimyasalla yeniden eklemek daha güvenli
+                # (kimyasal alanları, secili.* üzerinden Tablo A'dan gelir);
+                # yalnızca ambalaj/miktar/LQ/EQ gibi kalem-özel bilgiler
+                # düzenlenebilir.
+                st.markdown(f"**Düzenleniyor: UN{k['un_number']} — {k['proper_name']}**")
+                ec1, ec2, ec3 = st.columns(3)
+                e_paket_turu = ec1.selectbox("Ambalaj türü", PAKET_TURLERI,
+                    index=PAKET_TURLERI.index(k["packaging_type"]) if k["packaging_type"] in PAKET_TURLERI else 0,
+                    key=f"duz_paket_turu_{i}")
+                e_paket_adet = ec2.number_input("Ambalaj adeti", min_value=0, step=1,
+                    value=int(k["packaging_count"]), key=f"duz_paket_adet_{i}")
+                e_net_miktar = ec3.number_input("Net miktar", min_value=0.0, step=1.0,
+                    value=float(k["net_quantity"]), key=f"duz_net_miktar_{i}")
+                ec4, ec5, ec6 = st.columns(3)
+                e_birim = ec4.selectbox("Birim", ["kg", "lt", "adet"],
+                    index=["kg", "lt", "adet"].index(k["unit"]) if k["unit"] in ("kg", "lt", "adet") else 0,
+                    key=f"duz_birim_{i}")
+                e_lq = ec5.checkbox("LQ (Sınırlı Miktar)", value=bool(k["is_lq"]), key=f"duz_lq_{i}")
+                e_eq = ec6.checkbox("EQ (İstisnai Miktar)", value=bool(k["is_eq"]), key=f"duz_eq_{i}")
+                bc_kaydet, bc_vazgec = st.columns(2)
+                if bc_kaydet.button("💾 Değişikliği kaydet", type="primary",
+                                    key=f"duz_kaydet_{i}", use_container_width=True):
+                    kalemler[i] = {
+                        **k, "packaging_type": e_paket_turu,
+                        "packaging_count": int(e_paket_adet),
+                        "net_quantity": float(e_net_miktar),
+                        "gross_quantity": float(e_net_miktar),
+                        "unit": e_birim, "is_lq": e_lq, "is_eq": e_eq,
+                    }
+                    st.session_state["editor_kalemler"] = kalemler
+                    st.session_state["kalem_duzenle_i"] = None
+                    st.rerun()
+                if bc_vazgec.button("Vazgeç", key=f"duz_vazgec_{i}", use_container_width=True):
+                    st.session_state["kalem_duzenle_i"] = None
+                    st.rerun()
+                st.divider()
+                continue
+
+            c1, c2, c3, c4, c5, c6 = st.columns([1, 3, 1.2, 2, 0.6, 0.6])
             c1.write(f"UN{k['un_number']}")
             c2.write(k["proper_name"])
             c3.write(f"{k['class_code']}{' PG' + k['packing_group'] if k['packing_group'] else ''}")
             c4.write(f"{k['packaging_type']} · {k['packaging_count']} adet · "
                      f"{k['net_quantity']} {k['unit']}"
                      + (" · LQ" if k["is_lq"] else "") + (" · EQ" if k["is_eq"] else ""))
-            if c5.button("🗑️", key=f"kalem_sil_{i}"):
+            if c5.button("✏️", key=f"kalem_duz_{i}", help="Düzenle"):
+                st.session_state["kalem_duzenle_i"] = i
+                st.rerun()
+            if c6.button("🗑️", key=f"kalem_sil_{i}", help="Sil"):
                 kalemler.pop(i)
                 st.session_state["editor_kalemler"] = kalemler
+                if st.session_state.get("kalem_duzenle_i") == i:
+                    st.session_state["kalem_duzenle_i"] = None
                 st.rerun()
     else:
         st.info("Henüz ürün eklenmedi.")

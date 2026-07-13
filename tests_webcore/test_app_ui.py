@@ -397,3 +397,90 @@ class TestSayfaGecisindeFormKapaniyor:
         ad_alani.set_value("DEVAM EDEN GİRİŞ").run()
         assert al(t.session_state, "surucu_form_ac") is True, \
             "aynı sayfada kalırken form yanlışlıkla kapandı"
+
+
+class TestKalemDuzenleme:
+    """Düzeltme: Taşınan Ürünler listesindeki kalemler yalnızca
+    silinebiliyordu, düzenlenemiyordu (Umut'un talebi). ✏️ Düzenle
+    butonu eklendi — ambalaj türü/adedi, net miktar, birim, LQ/EQ
+    yerinde güncellenebiliyor (kimyasal/UN/sınıf değiştirilemez,
+    o değişecekse silip doğru kimyasalla yeniden eklenir)."""
+
+    def test_kalem_yerinde_guncellenir(self):
+        if not PG_DSN:
+            pytest.skip("ADR_PG_TEST_DSN_APP tanımlı değil")
+        from streamlit.testing.v1 import AppTest
+
+        def al(ss, k, v=None):
+            try:
+                return ss[k]
+            except Exception:
+                return v
+
+        t = AppTest.from_file("sayfalar/sevkiyat_editor.py", default_timeout=40)
+        t.secrets["db"] = {"dsn": PG_DSN}
+        t.session_state["user"] = {"username": "umut", "tenant_id": 1,
+                                   "role": "admin", "full_name": "U"}
+        t.run()
+        t.session_state["editor_kalemler"] = [dict(
+            id=None, shipment_id=None, chemical_id=1, un_number="1203",
+            proper_name="BENZİN", class_code="3", packing_group="II",
+            packaging_type="Varil", packaging_count=4, net_quantity=200.0,
+            gross_quantity=200.0, unit="lt", is_lq=False, is_eq=False,
+            lq_max_per_package=0.0, eq_max_per_package=0.0, notes="",
+            tunnel_code="D/E", segregation_group="", classification_code="F1",
+            transport_category="2", special_provisions="")]
+        t.run()
+        assert not t.exception
+
+        duz_btn = [b for b in t.button if b.key == "kalem_duz_0"]
+        assert duz_btn, "Düzenle butonu bulunamadı"
+        duz_btn[0].click().run()
+        assert al(t.session_state, "kalem_duzenle_i") == 0
+
+        [ni for ni in t.number_input if ni.key == "duz_paket_adet_0"][0].set_value(9)
+        [ni for ni in t.number_input if ni.key == "duz_net_miktar_0"][0].set_value(450.0)
+        [cb for cb in t.checkbox if cb.key == "duz_lq_0"][0].set_value(True)
+        [b for b in t.button if b.key == "duz_kaydet_0"][0].click().run()
+
+        assert not t.exception
+        kalem = al(t.session_state, "editor_kalemler")[0]
+        assert kalem["packaging_count"] == 9
+        assert kalem["net_quantity"] == 450.0
+        assert kalem["is_lq"] is True
+        assert kalem["un_number"] == "1203", "kimyasal/UN değişmemeli"
+        assert al(t.session_state, "kalem_duzenle_i") is None, \
+            "kayıt sonrası düzenleme modu kapanmalı"
+
+    def test_vazgec_degisiklik_yapmaz(self):
+        if not PG_DSN:
+            pytest.skip("ADR_PG_TEST_DSN_APP tanımlı değil")
+        from streamlit.testing.v1 import AppTest
+
+        def al(ss, k, v=None):
+            try:
+                return ss[k]
+            except Exception:
+                return v
+
+        t = AppTest.from_file("sayfalar/sevkiyat_editor.py", default_timeout=40)
+        t.secrets["db"] = {"dsn": PG_DSN}
+        t.session_state["user"] = {"username": "umut", "tenant_id": 1,
+                                   "role": "admin", "full_name": "U"}
+        t.run()
+        t.session_state["editor_kalemler"] = [dict(
+            id=None, shipment_id=None, chemical_id=1, un_number="1203",
+            proper_name="BENZİN", class_code="3", packing_group="II",
+            packaging_type="Varil", packaging_count=4, net_quantity=200.0,
+            gross_quantity=200.0, unit="lt", is_lq=False, is_eq=False,
+            lq_max_per_package=0.0, eq_max_per_package=0.0, notes="",
+            tunnel_code="D/E", segregation_group="", classification_code="F1",
+            transport_category="2", special_provisions="")]
+        t.run()
+        [b for b in t.button if b.key == "kalem_duz_0"][0].click().run()
+        [ni for ni in t.number_input if ni.key == "duz_paket_adet_0"][0].set_value(99)
+        [b for b in t.button if b.key == "duz_vazgec_0"][0].click().run()
+
+        kalem = al(t.session_state, "editor_kalemler")[0]
+        assert kalem["packaging_count"] == 4, "Vazgeç'e rağmen değişiklik uygulanmış"
+        assert al(t.session_state, "kalem_duzenle_i") is None

@@ -661,3 +661,22 @@ Sürücüler/Araçlar'ın üçünde de uygulandı.
 dönünce KAPANIYOR, (2) AYNI sayfada kalıp bir alanla etkileşime girerken
 (ör. yazı yazarken) YANLIŞLIKLA KAPANMIYOR (devam eden veri girişi
 korunuyor). Suite: 244 test.
+
+
+## Özellik eklendi: Taşınan Ürünler kalemleri artık düzenlenebiliyor
+Umut'un tespiti doğruydu: kaydedilmiş bir ürün kalemi yalnızca 🗑️ ile
+silinebiliyordu, düzenlemek için silip yeniden eklemek gerekiyordu.
+`sayfalar/sevkiyat_editor.py`'ye ✏️ Düzenle butonu eklendi — tıklanınca
+satır, ambalaj türü/adedi/net miktar/birim/LQ/EQ alanlarını önceden
+doldurulmuş şekilde gösteren bir düzenleme formuna dönüşüyor ("💾
+Değişikliği kaydet" / "Vazgeç" butonlarıyla).
+
+Bilinçli tasarım kararı: kimyasal (UN/ad/sınıf/PG/tünel vb. — Tablo A'dan
+gelen alanlar) düzenlenemiyor, yalnızca kalem-özel bilgiler (ambalaj,
+miktar, LQ/EQ) değiştirilebiliyor. Kimyasal yanlışsa silip doğru
+kimyasalla yeniden eklemek daha güvenli — yarı-güncellenmiş bir kalemin
+Tablo A alanlarıyla tutarsız kalması riskini önler.
+
+Doğrulama: düzenle → alanları değiştir → kaydet → kalem yerinde
+güncellendi + UN numarası değişmedi + düzenleme modu kapandı; ayrıca
+Vazgeç'in hiçbir değişiklik uygulamadığı ayrı test edildi. Suite: 246 test.
