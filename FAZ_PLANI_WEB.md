@@ -741,3 +741,22 @@ hesaplama yolu, ayrı fonksiyonların birbirinden sapması riski kalmadı.
 Doğrulama: Sınıf 1 senaryosunda Yazılı Talimat + Muafiyet göstergelerinin
 göründüğü, SRC5'li sürücüde info mesajının kaybolmadığı test edildi.
 Suite: 246 test.
+
+
+## Düzeltme: 'Veritabanına şu an ulaşılamıyor' uyarısı pasife alındı
+Umut'un talebi: giriş ekranındaki sarı uyarı kutusu görsel gürültü
+yaratıyordu, istemedi ama silinmesini de istemedi ("belki daha sonra
+açtırırım"). `app.py`'ye `DB_ULASILAMADI_UYARISI_GOSTER = False` bayrağı
+eklendi — yalnızca uyarı METNİNİN görünürlüğünü kontrol eder.
+
+KRİTİK KORUMA: bayrak False olsa bile `get_db().execute_one("SELECT 1 AS
+ping")` çağrısı HER ZAMAN çalışır — bu ping, Faz 5/6'da kurulan keep-alive
+mekanizmasının veritabanı ayağıdır (GitHub Actions'ın 15 dakikada bir
+attığı HTTP isteği bu satır sayesinde Supabase'e de dokunur; aksi hâlde
+yalnızca Streamlit'i uyanık tutar, Supabase'in 7 gün duraklatma sayacını
+SIFIRLAMAZ). Yani bu değişiklik keep-alive'ı bozmadan yalnızca kullanıcı
+deneyimini sadeleştirdi.
+
+Doğrulama: DB'ye kasıtlı yanlış bağlantı dizesiyle bağlanıp uyarının
+göstermediği + giriş formunun yine de göründüğü + bayrağın tek satırla
+geri açılabilir olduğu test edildi. Suite: 248 test.

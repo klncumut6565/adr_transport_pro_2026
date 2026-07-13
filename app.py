@@ -21,6 +21,17 @@ st.set_page_config(
     layout="wide",
 )
 
+# DÜZELTME (Umut'un talebi): "Veritabanına şu an ulaşılamıyor..." uyarısı
+# PASİFE ALINDI — silinmedi, tek bayrakla geri açılabilir. ÖNEMLİ: bu
+# bayrak yalnızca GÖRÜNEN UYARI METNİNİ kontrol eder; hemen altındaki
+# `get_db().execute_one("SELECT 1 AS ping")` çağrısı HER ZAMAN çalışmaya
+# devam eder — bu ping, Faz 5/6'da kurulan keep-alive mekanizmasının
+# veritabanı ayağıdır (GitHub Actions'ın 15 dakikada bir attığı HTTP
+# isteği bu satır sayesinde Supabase'e de dokunur, aksi hâlde yalnızca
+# Streamlit'i uyanık tutar, Supabase'in 7 gün duraklatma sayacını
+# SIFIRLAMAZ). Yani bu bayrak False iken bile keep-alive bozulmaz —
+# yalnızca kullanıcıya gösterilen sarı kutu gizlenir.
+DB_ULASILAMADI_UYARISI_GOSTER = False
 
 def _login_page():
     st.title("🚚 ADR Transport Pro 2026")
@@ -30,12 +41,14 @@ def _login_page():
     # ping'i dahil) Supabase'e SELECT 1 düşürür; böylece tek GitHub Actions
     # ping'i hem Streamlit uykusunu hem Supabase'in 7 gün duraklatma
     # sayacını birlikte sıfırlar. Veritabanı geçici olarak erişilemezse
-    # giriş formu yine de gösterilir.
+    # giriş formu yine de gösterilir (ping HER ZAMAN denenir; yalnızca
+    # kullanıcıya gösterilen uyarı DB_ULASILAMADI_UYARISI_GOSTER'e bağlı).
     try:
         get_db().execute_one("SELECT 1 AS ping")
     except Exception:
-        st.warning("Veritabanına şu an ulaşılamıyor; giriş geçici olarak "
-                   "başarısız olabilir.")
+        if DB_ULASILAMADI_UYARISI_GOSTER:
+            st.warning("Veritabanına şu an ulaşılamıyor; giriş geçici olarak "
+                       "başarısız olabilir.")
 
     with st.form("giris"):
         username = st.text_input("Kullanıcı adı")

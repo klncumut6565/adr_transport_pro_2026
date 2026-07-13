@@ -593,3 +593,27 @@ class TestKontrolMerkeziMasaustuEslesme:
         info_mesajlari = [m for _, m in rapor.info]
         assert any("SRC5" in m for m in info_mesajlari), \
             "SRC5 onay mesajı rapor.info'da yok — panel bunu göstermemeli demek değil"
+
+
+class TestDBUlasilamadiUyarisiPasif:
+    """Düzeltme (Umut'un talebi): 'Veritabanına şu an ulaşılamıyor'
+    uyarısı PASİFE ALINDI (silinmedi — DB_ULASILAMADI_UYARISI_GOSTER
+    bayrağı ile geri açılabilir). KRİTİK: bu bayrak yalnızca UYARI
+    METNİNİ gizler; alttaki SELECT 1 ping'i HER ZAMAN çalışmaya devam
+    eder (Faz 5/6 keep-alive mekanizmasının veritabanı ayağı — bozulmamalı)."""
+
+    def test_db_erisilemezken_uyari_gosterilmiyor(self):
+        from streamlit.testing.v1 import AppTest
+        t = AppTest.from_file("app.py", default_timeout=30)
+        t.secrets["db"] = {"dsn": "postgresql://yanlis:sifre@olmayan-host:5432/yok"}
+        t.run()
+        assert not t.exception
+        assert len(t.warning) == 0, "uyarı pasife alınmasına rağmen görünüyor"
+        assert any(ti.label == "Kullanıcı adı" for ti in t.text_input), \
+            "giriş formu DB hatasına rağmen gösterilmeye devam etmeli"
+
+    def test_bayrak_kapali_ve_kolayca_acilabilir(self):
+        import app
+        assert app.DB_ULASILAMADI_UYARISI_GOSTER is False
+        # bayrağın varlığı, geri açmanın tek satırlık bir değişiklik
+        # olduğunun (kod silinmediğinin) kanıtıdır.
