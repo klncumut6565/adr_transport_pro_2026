@@ -125,7 +125,18 @@ Uyku sorunu: GitHub Actions keep-alive (Faz 5'te .github/workflows/keepalive.yml
       NOT: Başlığı masaüstündeki gibi "Taşıma Evrakı" yapmak ayrı bir
       karar olarak bekliyor (mevcut AppTest "Sevkiyat Editörü" başlığını
       doğruluyor, onay almadan değiştirilmedi).
-- [ ] Faz 5 — Streamlit Cloud dağıtım + secrets + keep-alive workflow
+- [x] Faz 5 — TAMAMLANDI. Streamlit Cloud dağıtımı canlı, Secrets
+      tanımlı. keep-alive workflow (.github/workflows/keepalive.yml)
+      GitHub Actions izin kısıtı (token'da 'workflow' scope yoktu, bu
+      dosya türü kod tarafından push edilemiyor — GitHub'ın güvenlik
+      kuralı) yüzünden Umut'un kendi tarayıcısından elle eklendi.
+      APP_URL repo değişkeni tanımlandı. Doğrulama: workflow API
+      üzerinden elle tetiklendi, çalıştırma 'success' sonucuyla
+      tamamlandı (hem job hem 'Uygulamaya ping at' adımı ayrı ayrı
+      success). 15 dakikada bir otomatik çalışıyor; hem Streamlit'in
+      doğal uyku moduna girmesini hem Supabase'in 7 gün istek yoksa
+      duraklatma davranışını (giriş ekranındaki SELECT 1 sayesinde
+      tek pingle) engelliyor.
 - [x] Faz 6 — Veri migrasyonu + yedek: `araclar/migrate_desktop_to_pg.py`
       (ID'ler ve ilişkiler korunur, kolon kesişimiyle şema-toleranslı,
       tenant_id atanır, IDENTITY sayaçları setval ile sarılır, --temizle /
