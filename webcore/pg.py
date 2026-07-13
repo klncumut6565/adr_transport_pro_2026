@@ -276,32 +276,66 @@ class PgDatabaseManager(DatabaseManager):
                 yield cur
 
     # ── geçitler (çeviri cursor'da; burada yalnız dönüş farkları) ────
+    # ── kendi kendini onaran çalıştırma ─────────────────────────────
+    # Streamlit, kullanıcı hızlı art arda bir widget'la etkileşime
+    # girdiğinde ÖNCEKİ script çalıştırmasını iptal edip yenisini başlatır
+    # (normal, istenen davranış). Bu iptal tam bir SET LOCAL transaction'ının
+    # ORTASINA denk gelirse (_tenanted_cursor içinde), bu oturumun TEK
+    # bağlantısı (artık her oturuma özel — bkz. webcore/session.py) bozuk
+    # bir transaction durumunda kalabilir; sonraki sorgu da hataya düşer
+    # ("art arda hızlı seçince ekran hata veriyor" şikâyetinin sebebi).
+    # Çözüm: bağlantı/transaction bozulduğunu gösteren hatalarda KENDİ
+    # KENDİNE bağlantıyı kapatıp yeniden kurar ve İşlemi BİR KEZ tekrar
+    # dener — kullanıcı hiçbir şey fark etmeden devam eder.
+    def _kopar_ve_yeniden_baglan(self):
+        try:
+            if self.connection and not self.connection.closed:
+                self.connection.close()
+        except Exception:
+            pass
+        self.connection = None
+
+    def _tenant_ile_calistir(self, fn):
+        try:
+            with self._tenanted_cursor(self._get_conn()) as cur:
+                return fn(cur)
+        except (psycopg.transaction.OutOfOrderTransactionNesting,
+                psycopg.OperationalError, psycopg.InterfaceError):
+            self._kopar_ve_yeniden_baglan()
+            with self._tenanted_cursor(self._get_conn()) as cur:
+                return fn(cur)
+
     def execute(self, query: str, params: tuple = ()) -> List[dict]:
-        with self._tenanted_cursor(self._get_conn()) as cur:
+        def _f(cur):
             cur.execute(query, params)
             return cur.fetchall()
+        return self._tenant_ile_calistir(_f)
 
     def execute_one(self, query: str, params: tuple = ()) -> Optional[dict]:
-        with self._tenanted_cursor(self._get_conn()) as cur:
+        def _f(cur):
             cur.execute(query, params)
             return cur.fetchone()
+        return self._tenant_ile_calistir(_f)
 
     def execute_insert(self, query: str, params: tuple = ()) -> int:
         q = query.rstrip().rstrip(";")
         if re.match(r"^\s*INSERT\b", q, re.IGNORECASE) and "RETURNING" not in q.upper():
             q += " RETURNING id"
-        with self._tenanted_cursor(self._get_conn()) as cur:
+
+        def _f(cur):
             cur.execute(q, params)
             if cur.description:
                 row = cur.fetchone()
                 if row and "id" in row:
                     return row["id"]
-        return 0
+            return 0
+        return self._tenant_ile_calistir(_f)
 
     def execute_update(self, query: str, params: tuple = ()) -> int:
-        with self._tenanted_cursor(self._get_conn()) as cur:
+        def _f(cur):
             cur.execute(query, params)
             return cur.rowcount
+        return self._tenant_ile_calistir(_f)
 
     def execute_delete(self, query: str, params: tuple = ()) -> int:
         return self.execute_update(query, params)

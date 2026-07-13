@@ -149,11 +149,29 @@ def _item_nesneleri():
 
 # Seçili firma/sürücü/araç nesneleri: form ve sağ panel ikisi de kullanır,
 # tek seferde çekilir (her rerun'da tekrar tekrar sorgulanmasın diye).
-_secili_sender = d.get_company(sev["sender_id"]) if sev["sender_id"] else None
-_secili_receiver = d.get_company(sev["receiver_id"]) if sev["receiver_id"] else None
-_secili_carrier = d.get_company(sev["carrier_id"]) if sev["carrier_id"] else None
-_secili_driver = d.get_driver(sev["driver_id"]) if sev["driver_id"] else None
-_secili_vehicle = d.get_vehicle(sev["vehicle_id"]) if sev["vehicle_id"] else None
+# DÜZELTME (performans): firmalar/sürücüler/araçlar listeleri az önce
+# (satır 138-142) ZATEN tam olarak çekildi; burada ID ile tekrar
+# veritabanına gitmek yerine, bellekte zaten duran listeden aranıyor.
+# Önceki hâli her seçimde 5 EK ağ gidiş-gelişine mal oluyordu — kiracı
+# bağlamının artık her sorguda ayrı bir transaction (SET LOCAL) açması
+# gerektiği için (bkz. webcore/pg.py:_tenanted_cursor notu) bu maliyet
+# özellikle büyümüştü ve "her seçimde 1-2 sn donma" şikâyetinin sebebiydi.
+_firma_bul = lambda fid: next((f for f in firmalar if f.id == fid), None)
+_surucu_bul = lambda did: next((s for s in suruculer if s.id == did), None)
+_arac_bul = lambda vid: next((a for a in araclar if a.id == vid), None)
+_secili_sender = _firma_bul(sev["sender_id"]) if sev["sender_id"] else None
+_secili_receiver = _firma_bul(sev["receiver_id"]) if sev["receiver_id"] else None
+_secili_carrier = _firma_bul(sev["carrier_id"]) if sev["carrier_id"] else None
+_secili_driver = _surucu_bul(sev["driver_id"]) if sev["driver_id"] else None
+_secili_vehicle = _arac_bul(sev["vehicle_id"]) if sev["vehicle_id"] else None
+# Nadir kenar durum: sevkiyat, sonradan PASİF yapılmış bir sürücü/araca
+# bağlıysa (active_only=True listesinde yok), yalnız o durumda tek
+# seferlik doğrudan sorguya düşülür — aksi hâlde eski kayıtlarda sürücü/
+# araç bilgisi sessizce kaybolurdu.
+if sev["driver_id"] and _secili_driver is None:
+    _secili_driver = d.get_driver(sev["driver_id"])
+if sev["vehicle_id"] and _secili_vehicle is None:
+    _secili_vehicle = d.get_vehicle(sev["vehicle_id"])
 
 
 sol, sag = st.columns([2.3, 1], gap="large")

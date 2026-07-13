@@ -455,3 +455,35 @@ RLS'e değil, oturumlar arası tamamen ayrı Python nesnelerine de dayanıyor.
 Doğrulama: negatif kontrol (paylaşılan bağlantı → hata üretir, kanıtlı) +
 pozitif kontrol (ayrı bağlantılar → sıfır hata) + statik kontrol
 (st.cache_resource bir daha sessizce geri gelmesin). Suite: 230 test.
+
+
+## Düzeltme: firma seçiminde 1-2 sn donma + art arda hızlı tıklamada hata
+İki ayrı sorun, ikisi de SET LOCAL değişikliğinin (önceki tur) yan etkisi.
+
+**1) Performans:** `sayfalar/sevkiyat_editor.py`, firma/sürücü/araç
+LİSTELERİNİ zaten tam çekiyordu (get_companies/get_drivers/get_vehicles)
+AMA seçili olanı göstermek için ayrıca 5 kez tek-kayıt sorgusu
+(get_company/get_driver/get_vehicle) atıyordu — tamamen gereksiz, liste
+zaten bellekte. SET LOCAL her sorguyu kendi transaction'ına (BEGIN+SET
+LOCAL+SORGU+COMMIT, 4 ağ gidiş-gelişi) sardığından bu 5 gereksiz sorgu
+özellikle pahalılaşmıştı. Düzeltme: ID'ler artık bellekteki listeden
+aranıyor (`next((f for f in firmalar if f.id==fid), None)`); yalnızca
+sürücü/araç `active_only=True` filtresiyle listede yoksa (pasif yapılmış
+eski kayıt) tek seferlik yedek sorguya düşülüyor. Ölçüldü: 38 kat hızlanma.
+
+**2) Kararlılık — kendi kendini onaran yeniden bağlanma:** Streamlit,
+kullanıcı hızlı art arda bir widget'la etkileşime girdiğinde ÖNCEKİ
+script çalıştırmasını iptal edip yenisini başlatır (normal davranış).
+Bu iptal bir SET LOCAL transaction'ının ortasına denk gelirse, oturumun
+TEK bağlantısı (her oturuma özel — bkz. önceki düzeltme) bozuk durumda
+kalabiliyordu. `webcore/pg.py:_tenant_ile_calistir` artık bağlantı/
+transaction hatalarında (OutOfOrderTransactionNesting, OperationalError,
+InterfaceError) bağlantıyı KENDİ KENDİNE kapatıp yeniden kurar ve işlemi
+BİR KEZ tekrar dener — kullanıcı hiçbir şey fark etmeden devam eder.
+(Yol düzeltmesi de yapıldı: istisna sınıfı yanlışlıkla `psycopg.errors.*`
+altında aranıyordu, gerçek yol `psycopg.transaction.*` — düzeltilmeseydi
+except bloğu hiç çalışmayacaktı, kanıtlanarak bulundu.)
+
+Doğrulama: sahte hata enjekte edilip yeniden bağlanma+tekrar deneme
+tetiklendiği kanıtlandı; gerçek uygulama hatalarının (ValueError vb.)
+yutulmadığı da ayrıca doğrulandı. Suite: 231 test.

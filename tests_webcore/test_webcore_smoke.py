@@ -536,28 +536,14 @@ class TestEsZamanliOturumIzolasyonu:
     aynı bağlantı üzerinde çakışıyordu). webcore/session.py artık
     st.session_state ile HER OTURUMA kendi bağlantısını veriyor."""
 
-    def test_paylasilan_baglanti_hata_uretir_kanit(self):
-        """Negatif kontrol: PAYLAŞILAN tek bağlantıda bu hata GERÇEKTEN
-        oluşuyor mu? (Düzeltmenin çözdüğü problemin var olduğunun kanıtı)"""
-        if not PG_DSN:
-            pytest.skip("ADR_PG_TEST_DSN tanımlı değil")
-        import threading
-        from webcore.pg import PgDatabaseManager
-
-        paylasilan = PgDatabaseManager(PG_DSN)
-        hatalar = []
-
-        def carpisan():
-            for _ in range(20):
-                try:
-                    paylasilan.execute_one("SELECT 1 AS x")
-                except Exception as e:
-                    hatalar.append(type(e).__name__)
-
-        konular = [threading.Thread(target=carpisan) for _ in range(5)]
-        [t.start() for t in konular]
-        [t.join() for t in konular]
-        assert len(hatalar) > 0, "beklenen çakışma bu ortamda oluşmadı (bilgi amaçlı)"
+    # NOT: Bu sınıfın önceki bir sürümünde, paylaşılan tek bağlantıda
+    # OutOfOrderTransactionNesting'in gerçekten oluştuğunu kanıtlayan bir
+    # "negatif kontrol" testi vardı (5 iş parçacığı → 125/100 hata).
+    # Sonraki turda eklenen kendi-kendini-onaran yeniden bağlanma mekanizması
+    # (webcore/pg.py:_tenant_ile_calistir) bu hatayı İÇERİDE yakalayıp
+    # sessizce düzelttiği için o test artık güvenilir biçimde başarısız
+    # OLMUYOR (iyi haber, ama "kanıt" testi olarak anlamını yitirdi) —
+    # kanıt FAZ_PLANI_WEB.md'de kayıtlı, kaldırıldı.
 
     def test_ayri_baglantilar_esizamanlilikta_hatasiz(self):
         """Pozitif kontrol: HER 'oturum' kendi bağlantısını kullanınca
@@ -592,3 +578,51 @@ class TestEsZamanliOturumIzolasyonu:
         # yalnızca gerçek "@st.cache_resource" dekoratör satırları aranır.
         assert not any(l.strip() == "@st.cache_resource"
                        for l in src.splitlines())
+
+
+class TestKendiKendiniOnaranBaglanti:
+    """Düzeltme: Streamlit'in art arda hızlı tıklamada önceki script
+    çalıştırmasını iptal etmesi, bir SET LOCAL transaction'ının ortasına
+    denk gelirse bağlantıyı bozuk durumda bırakabiliyordu ('art arda
+    hızlı seçince ekran hata veriyor' şikâyeti). _tenant_ile_calistir
+    artık bağlantı/transaction hatalarını yakalayıp KENDİ KENDİNE yeniden
+    bağlanıp bir kez daha dener."""
+
+    def test_bozuk_transaction_sonrasi_kendiliginden_toparlanir(self):
+        if not PG_DSN:
+            pytest.skip("ADR_PG_TEST_DSN tanımlı değil")
+        import psycopg
+        from webcore.pg import PgDatabaseManager
+
+        db = PgDatabaseManager(PG_DSN)
+        eski_id = id(db.connection)
+
+        cagri = {"n": 0}
+        def sahte(cur):
+            cagri["n"] += 1
+            if cagri["n"] == 1:
+                raise psycopg.transaction.OutOfOrderTransactionNesting("test")
+            cur.execute("SELECT 1 AS x")
+            return cur.fetchone()
+
+        sonuc = db._tenant_ile_calistir(sahte)
+        assert sonuc == {"x": 1}
+        assert cagri["n"] == 2, "yeniden deneme tetiklenmedi"
+        assert id(db.connection) != eski_id, "bağlantı yenilenmedi"
+
+        # gerçek işlevsellik bozulmadan devam ediyor mu
+        assert db.search_chemicals("1203")
+
+    def test_yanlis_hatalarda_yeniden_denemez(self):
+        """Yeniden bağlanma yalnızca BAĞLANTI hatalarında devreye girmeli;
+        sıradan bir uygulama hatasını (ör. veri hatası) yutup gizlememeli."""
+        if not PG_DSN:
+            pytest.skip("ADR_PG_TEST_DSN tanımlı değil")
+        from webcore.pg import PgDatabaseManager
+        db = PgDatabaseManager(PG_DSN)
+
+        def patlar(cur):
+            raise ValueError("gerçek bir uygulama hatası")
+
+        with pytest.raises(ValueError):
+            db._tenant_ile_calistir(patlar)
