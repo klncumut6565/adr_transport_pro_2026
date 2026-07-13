@@ -31,7 +31,7 @@ st.set_page_config(
 # Streamlit'i uyanık tutar, Supabase'in 7 gün duraklatma sayacını
 # SIFIRLAMAZ). Yani bu bayrak False iken bile keep-alive bozulmaz —
 # yalnızca kullanıcıya gösterilen sarı kutu gizlenir.
-DB_ULASILAMADI_UYARISI_GOSTER = True  # GEÇİCİ tanı amaçlı açık — sorun çözülünce False'a dön
+DB_ULASILAMADI_UYARISI_GOSTER = False
 
 def _login_page():
     st.title("🚚 ADR Transport Pro 2026")
