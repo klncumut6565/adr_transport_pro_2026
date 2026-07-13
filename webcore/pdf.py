@@ -27,6 +27,38 @@ def html_to_pdf_bytes(html: str, base_url: str | None = None) -> bytes:
     return HTML(string=html, base_url=base_url).write_pdf()
 
 
+def wrap_for_screen_preview(html: str) -> str:
+    """A4 evrak şablonunu TARAYICIDA gerçek çıktıya benzer gösterir.
+
+    Sorun: şablonun `@page {{ size: A4; margin: 8mm 10mm; }}` kuralı
+    yalnızca yazdırma/PDF motorlarında (WeasyPrint dahil) uygulanır —
+    tarayıcılar bunu EKRANDA tamamen yok sayar. Bu yüzden aynı HTML,
+    Canlı Önizleme'de (components.html, normal ekran render'ı) sayfa
+    genişliği/kenar boşluğu olmadan dağınık akıyor, PDF'te ise düzgün
+    A4 çıkıyor — "önizleme çıktıya hiç benzemiyor" şikâyetinin sebebi.
+
+    Çözüm: yalnızca ÖNİZLEME kopyasına, @page'in ekranda YAPAMADIĞI şeyi
+    (sayfa genişliği + kenar boşluğu + "kağıt" görünümü) taklit eden bir
+    <style> enjekte edilir. PDF üretimi bu fonksiyonu ÇAĞIRMAZ, dolayısıyla
+    hiç etkilenmez — html_to_pdf_bytes hâlâ orijinal (sarmalanmamış) HTML'i
+    alır ve WeasyPrint @page kuralını olduğu gibi uygular.
+    """
+    ekran_css = """
+<style>
+  html { background: #e2e2e2; }
+  body {
+    width: 210mm;
+    min-height: 297mm;
+    margin: 12px auto !important;
+    padding: 8mm 10mm !important;
+    box-shadow: 0 1px 8px rgba(0,0,0,.28);
+  }
+</style>"""
+    if "</head>" in html:
+        return html.replace("</head>", ekran_css + "\n</head>", 1)
+    return ekran_css + html
+
+
 def build_letterhead_watermark_b64(logo_b64: str, is_approved: bool,
                                     w: int = 794, h: int = 1120) -> str:
     """Antetli kagit gorunumu icin tek bir arka plan PNG'i uretir:

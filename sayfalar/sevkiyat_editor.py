@@ -366,7 +366,9 @@ with sag:
                 driver=_secili_driver, vehicle=_secili_vehicle,
                 status_text=sev["status"], notes=sev["notes"] or "")
             with st.expander("Önizlemeyi göster/gizle", expanded=False):
-                components.html(_onizleme_html, height=650, scrolling=True)
+                from webcore.pdf import wrap_for_screen_preview
+                components.html(wrap_for_screen_preview(_onizleme_html),
+                               height=850, scrolling=True)
 
             if st.button("📄 PDF oluştur ve indir", use_container_width=True):
                 try:

@@ -323,3 +323,21 @@ idempotent içe aktarma mevcut veriyi silmez, üzerine ekler).
 Suite: 223 test. Bu düzeltme push edildikten sonra Cloud'da reboot
 GERÇEKTEN etkili olacak — önceki reboot'lar hâlâ eski "== 0" kontrollü
 kodu çalıştırıyordu.
+
+
+## Düzeltme: Canlı Önizleme gerçek PDF çıktısına hiç benzemiyordu
+Sebep: taşıma evrakı şablonundaki `@page {{ size: A4; margin: 8mm 10mm; }}`
+kuralı yalnızca yazdırma/PDF motorlarında (WeasyPrint dahil) uygulanır —
+TARAYICILAR bunu ekranda tamamen yok sayar. Aynı HTML, Canlı Önizleme'de
+(components.html, normal ekran render'ı) sayfa genişliği/kenar boşluğu
+kısıtı olmadan dağınık akıyordu; PDF'e çevrilince ise WeasyPrint @page'i
+uygulayıp düzgün A4 üretiyordu — ikisi arasındaki fark buydu.
+
+Düzeltme: `webcore/pdf.py` → `wrap_for_screen_preview()`. Yalnızca
+ÖNİZLEME kopyasına (components.html'e giden), @page'in ekranda
+yapamadığını taklit eden bir <style> enjekte eder (width:210mm, sayfa
+kenar boşluğu, "kağıt" gölgesi). PDF üretimi (`html_to_pdf_bytes`) HÂLÂ
+orijinal, sarmalanmamış HTML'i alıyor — hiç etkilenmedi. Kanıtlandı:
+sarmalama yalnızca <head>'e ekleme yapıyor, <body> içeriği birebir aynı
+kalıyor, orijinal @page kuralı korunuyor, PDF orijinal HTML'den sorunsuz
+üretiliyor. Suite: 225 test.
