@@ -425,3 +425,33 @@ ikilileri döner.
 
 Doğrulama: gerçek "1993" senaryosu — 6 sonuç, hepsi UN1993 (tabloyu
 filtresiz göstermiyor). Suite: 227 test.
+
+
+## KRİTİK GÜVENLİK/KARARLILIK DÜZELTMESİ: paylaşılan global DB bağlantısı
+Umut'un canlıda aldığı `psycopg.transaction.OutOfOrderTransactionNesting`
+hatası, en ciddi mimari kusuru ortaya çıkardı.
+
+**Sebep:** `webcore/session.py`'deki `get_db()`/`get_auth()` fonksiyonları
+`@st.cache_resource` ile tanımlıydı — argümansız olduğu için TEK bir
+global singleton PgDatabaseManager (ve tek bir psycopg Connection)
+ÜRETİYORDU. Streamlit Cloud, farklı kullanıcı oturumlarının script'lerini
+AYRI İŞ PARÇACIKLARINDA eşzamanlı çalıştırabildiği için, uygulamaya aynı
+anda giren TÜM KULLANICILAR aynı tek bağlantıyı PAYLAŞIYORDU. SET LOCAL
+transaction sarmalayıcısı (önceki tur) bu tehlikeyi GÖRÜNÜR bir hataya
+çevirdi; öncesinde muhtemelen sessizce yanlış kiracıya sorgu gitmesi /
+veri karışıklığı riski taşıyordu (kanıtlanmamış ama mimari olarak mümkündü).
+
+**Kanıt (yerelde yeniden üretildi):** 6 iş parçacığı PAYLAŞILAN tek
+bağlantı üzerinden eşzamanlı sorgu attığında 125/180 çağrı
+OutOfOrderTransactionNesting ile patladı — Umut'un gördüğü hatanın
+birebir aynısı.
+
+**Düzeltme:** `get_db()`/`get_auth()` artık `st.session_state` kullanıyor
+(`st.cache_resource` DEĞİL) — her Streamlit OTURUMUNA (her kullanıcı/
+tarayıcı sekmesi) kendi özel bağlantısı. Aynı 6 iş parçacıklı testte
+SIFIR hata. Bu aynı zamanda kiracı izolasyonunu GÜÇLENDİRDİ: artık yalnız
+RLS'e değil, oturumlar arası tamamen ayrı Python nesnelerine de dayanıyor.
+
+Doğrulama: negatif kontrol (paylaşılan bağlantı → hata üretir, kanıtlı) +
+pozitif kontrol (ayrı bağlantılar → sıfır hata) + statik kontrol
+(st.cache_resource bir daha sessizce geri gelmesin). Suite: 230 test.

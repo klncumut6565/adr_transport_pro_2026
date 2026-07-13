@@ -524,3 +524,71 @@ class TestEkranOnizlemeSarmalayici:
         from webcore.pdf import wrap_for_screen_preview
         sonuc = wrap_for_screen_preview("<body>gövde</body>")
         assert "width: 210mm" in sonuc and "gövde" in sonuc
+
+
+class TestEsZamanliOturumIzolasyonu:
+    """KRİTİK düzeltme: get_db()/get_auth() önceden @st.cache_resource
+    ile tanımlıydı — tek bir global PgDatabaseManager (ve tek bir psycopg
+    Connection) TÜM eşzamanlı kullanıcılar arasında paylaşılıyordu.
+    Streamlit Cloud farklı oturumları ayrı iş parçacıklarında eşzamanlı
+    çalıştırabildiği için bu, psycopg.transaction.OutOfOrderTransactionNesting
+    hatasına yol açıyordu (iki kullanıcının SET LOCAL transaction'ları
+    aynı bağlantı üzerinde çakışıyordu). webcore/session.py artık
+    st.session_state ile HER OTURUMA kendi bağlantısını veriyor."""
+
+    def test_paylasilan_baglanti_hata_uretir_kanit(self):
+        """Negatif kontrol: PAYLAŞILAN tek bağlantıda bu hata GERÇEKTEN
+        oluşuyor mu? (Düzeltmenin çözdüğü problemin var olduğunun kanıtı)"""
+        if not PG_DSN:
+            pytest.skip("ADR_PG_TEST_DSN tanımlı değil")
+        import threading
+        from webcore.pg import PgDatabaseManager
+
+        paylasilan = PgDatabaseManager(PG_DSN)
+        hatalar = []
+
+        def carpisan():
+            for _ in range(20):
+                try:
+                    paylasilan.execute_one("SELECT 1 AS x")
+                except Exception as e:
+                    hatalar.append(type(e).__name__)
+
+        konular = [threading.Thread(target=carpisan) for _ in range(5)]
+        [t.start() for t in konular]
+        [t.join() for t in konular]
+        assert len(hatalar) > 0, "beklenen çakışma bu ortamda oluşmadı (bilgi amaçlı)"
+
+    def test_ayri_baglantilar_esizamanlilikta_hatasiz(self):
+        """Pozitif kontrol: HER 'oturum' kendi bağlantısını kullanınca
+        (webcore/session.py'nin düzeltilmiş davranışı) aynı yük altında
+        SIFIR hata olmalı."""
+        if not PG_DSN:
+            pytest.skip("ADR_PG_TEST_DSN tanımlı değil")
+        import threading
+        from webcore.pg import PgDatabaseManager
+
+        hatalar = []
+
+        def kendi_baglantisiyla():
+            kendi_db = PgDatabaseManager(PG_DSN)
+            for _ in range(20):
+                try:
+                    kendi_db.execute_one("SELECT 1 AS x")
+                except Exception as e:
+                    hatalar.append(type(e).__name__)
+
+        konular = [threading.Thread(target=kendi_baglantisiyla) for _ in range(5)]
+        [t.start() for t in konular]
+        [t.join() for t in konular]
+        assert hatalar == [], f"ayrı bağlantılarla bile hata oluştu: {hatalar}"
+
+    def test_session_py_cache_resource_kullanmiyor(self):
+        """Statik kontrol: st.cache_resource bir daha sessizce geri
+        gelmesin diye (sonraki bir düzenleme bunu tekrar bozmasın)."""
+        src = open("webcore/session.py", encoding="utf-8").read()
+        # dekoratörler satırın BAŞINDA olur; docstring/yorumdaki bahisler
+        # (bu düzeltmeyi açıklayan metin) yanlışlıkla eşleşmesin diye
+        # yalnızca gerçek "@st.cache_resource" dekoratör satırları aranır.
+        assert not any(l.strip() == "@st.cache_resource"
+                       for l in src.splitlines())
