@@ -373,3 +373,30 @@ süredir "idle in transaction" durumunda takılı kalmış (muhtemelen önceki
     SELECT pg_terminate_backend(pid), query, state, now()-query_start AS sure
     FROM pg_stat_activity
     WHERE state = 'idle in transaction' AND now() - query_start > interval '2 minutes';
+
+
+## Düzeltme: Ürün arama Enter gerektiriyordu ve sonuçlar tek satırda görünüyordu
+Umut'un şikâyeti: "1993" gibi bir UN aradığında sonuçlar Enter'a basmadan
+çıkmıyordu VE çıktığında sanki tek sonuç varmış gibi görünüyordu.
+
+Kök sebep, iki ayrı Streamlit davranışıydı:
+1. `st.text_input` varsayılan olarak yalnızca Enter'a basılınca / odak
+   kaybedilince (blur) uygulamayı yeniden çalıştırır — her tuş vuruşunda
+   DEĞİL. Streamlit'in bu widget için "canlı" bir modu yoktur.
+2. `st.selectbox` her zaman KAPALI, tek satırlık bir açılır kutu olarak
+   render olur — kaç eşleşme olursa olsun ekranda hep "1 satır" gibi
+   görünür; tüm seçenekleri alt alta göstermek için tıklayıp açmak gerekir.
+
+Düzeltme: `sayfalar/sevkiyat_editor.py`'deki arama, `st.dataframe`'in
+YERLEŞİK araç çubuğu aramasına geçirildi — bu, TAMAMEN İSTEMCİ TARAFINDA
+(tarayıcıda) çalışır, sunucuya hiç gitmeden HER TUŞ VURUŞUNDA anında
+filtreler (masaüstü uygulamasındaki canlı arama hissine en yakın yerleşik
+Streamlit özelliği). Tüm eşleşmeler aynı anda tablo satırları olarak
+görünür; bir satıra tıklamak seçim yapar (`on_select="rerun"`,
+`selection_mode="single-row"`, seçim `.selection.rows` üzerinden okunur).
+
+Doğrulama: sayfa hatasız render oluyor, eski text_input/selectbox tamamen
+kalktı, ürün listesi tablosu render oluyor. (Not: AppTest test aracı
+dataframe satır tıklamasını simüle edemiyor — segfault veriyor, bu test
+aracının kendi kısıtı; seçim mantığı Streamlit'in resmi/belgelenmiş
+on_select API'sini birebir kullanıyor.) Suite: 225 test (+1 yeni).

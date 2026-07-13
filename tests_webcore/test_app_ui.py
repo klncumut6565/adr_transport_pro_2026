@@ -189,3 +189,24 @@ class TestTabloABozukDurumKurtarma:
             db.execute_update("DELETE FROM chemicals WHERE un_number != '9999'")
             db.import_table_a_excel("ADR_A_TABLOSU.xlsx")
             db.execute_update("DELETE FROM chemicals WHERE proper_shipping_name_tr = 'YARIM KALMIŞ'")
+
+
+class TestUrunEkleCanliArama:
+    """Düzeltme: text_input+selectbox ikilisi hem Enter gerektiriyordu
+    hem de tüm sonuçları alt alta göstermiyordu (selectbox kapalı tek
+    satır). st.dataframe'in yerleşik arama araç çubuğuna (istemci
+    tarafında, anında filtreleyen) geçildi."""
+
+    def test_sayfa_hatasiz_render_ve_liste_var(self):
+        if not PG_DSN:
+            pytest.skip("ADR_PG_TEST_DSN_APP tanımlı değil")
+        from streamlit.testing.v1 import AppTest
+        t = AppTest.from_file("sayfalar/sevkiyat_editor.py", default_timeout=40)
+        t.secrets["db"] = {"dsn": PG_DSN}
+        t.session_state["user"] = {"username": "umut", "tenant_id": 1,
+                                   "role": "admin", "full_name": "U"}
+        t.run()
+        assert not t.exception
+        # eski selectbox tabanlı arama tamamen kalkmış olmalı
+        assert not any("UN numarası veya madde adı" in ti.label for ti in t.text_input)
+        assert len(t.dataframe) >= 1, "ürün listesi tablosu render olmadı"

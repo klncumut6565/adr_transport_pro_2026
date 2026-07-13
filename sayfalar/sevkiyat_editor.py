@@ -223,10 +223,35 @@ with sol:
                         st.error(f"Yükleme başarısız: {turkce_hata_metni(exc)}")
                 else:
                     st.error("ADR_A_TABLOSU.xlsx dosyası bulunamadı.")
-        arama = st.text_input("UN numarası veya madde adı ile ara")
-        bulunanlar = db().search_chemicals(arama, limit=15) if arama else []
+        # DÜZELTME: eski st.text_input + st.selectbox ikilisi iki sorun
+        # yaratıyordu — (1) text_input Streamlit'te varsayılan olarak
+        # yalnızca Enter'a basınca/odak kaybedince tetiklenir, her tuş
+        # vuruşunda değil; (2) selectbox kapalı bir açılır kutudur, tüm
+        # eşleşmeleri alt alta GÖSTERMEZ, tek satırlık görünür. Bunun
+        # yerine st.dataframe'in YERLEŞİK arama araç çubuğu kullanılıyor:
+        # tamamen istemci tarafında (tarayıcıda) çalışır, sunucuya gitmeden
+        # HER TUŞ VURUŞUNDA anında filtreler — masaüstü uygulamasındaki
+        # canlı arama hissine en yakın yerleşik Streamlit özelliği budur.
+        _liste = db().get_all_chemicals(limit=3000)
+        if _liste:
+            st.caption("Tabloyu daraltmak için sağ üstteki 🔍 simgesine "
+                      "tıklayıp yazın (anında filtreler); bir satıra "
+                      "tıklayarak seçin.")
+            _secim = st.dataframe(
+                [{"UN No": k.un_number, "Ad": k.proper_shipping_name_tr,
+                  "Sınıf": k.class_code, "PG": k.packing_group,
+                  "Tünel": k.tunnel_code, "TK": k.transport_category}
+                 for k in _liste],
+                use_container_width=True, hide_index=True, height=280,
+                on_select="rerun", selection_mode="single-row",
+                key="urun_ekle_tablosu")
+            secili_satirlar = _secim.selection.rows if _secim and _secim.selection else []
+            secili = _liste[secili_satirlar[0]] if secili_satirlar else None
+        else:
+            secili = None
+        bulunanlar = [secili] if secili else []
         if bulunanlar:
-            secili = st.selectbox("Bulunan maddeler", bulunanlar, format_func=kimyasal_etiket)
+            st.success(f"Seçili: {kimyasal_etiket(secili)}")
             ic1, ic2, ic3 = st.columns(3)
             paket_turu = ic1.selectbox("Ambalaj türü", PAKET_TURLERI, key="yeni_paket_turu")
             paket_adet = ic2.number_input("Ambalaj adeti", min_value=0, step=1, key="yeni_paket_adet")
@@ -252,8 +277,8 @@ with sol:
                 })
                 st.session_state["editor_kalemler"] = kalemler
                 st.rerun()
-        elif arama:
-            st.info("Eşleşen madde bulunamadı.")
+        elif _liste:
+            st.caption("Tablodan bir satıra tıklayarak ürün seçin.")
 
     if kalemler:
         hc1, hc2, hc3, hc4, hc5 = st.columns([1, 3, 1.2, 2, 0.6])
