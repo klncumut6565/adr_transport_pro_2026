@@ -48,6 +48,33 @@ def build_transport_document_html(*, db, items, document_no: str,
     vehicle  = vehicle
     packaging_types = [item.packaging_type for item in items]
     report   = ADREngine.generate_adr_report(items, driver, vehicle, packaging_types)
+
+    # DÜZELTME (Umut'un tespiti): report.compatibility_errors artık
+    # generate_adr_report() içinde hesaplanmıyor (bkz. webcore/engines.py
+    # notu) — burada, veritabanına erişimi olan bu fonksiyonda GERÇEK
+    # motorla (adr_mix_pro, 71 birim testli) dolduruluyor. Masaüstündeki
+    # AnaDbChemicalAdapter'ın birebir web karşılığı kullanılıyor; sonuç
+    # artık gerçek bir ADR referansı (ör. "ADR 7.5.2.1") içeriyor.
+    try:
+        from .mix_adapter import gercek_mix_checker
+        _mc = gercek_mix_checker(db)
+        if _mc and len(items) >= 2:
+            _checker, _adapter = _mc
+            for _it in items:
+                _adapter.register_variant(_it.un_number, _it.classification_code,
+                                          _it.packing_group)
+            _pair_sonuclari, _ = _checker.check_all([_it.un_number for _it in items])
+            report.compatibility_errors = [
+                f"UN{r.un1} ({r.name1}) + UN{r.un2} ({r.name2}): {r.reason} "
+                f"[ADR {r.adr_reference}]"
+                for r in _pair_sonuclari if r.status not in ("OK",)
+            ]
+    except Exception:
+        # Evrak üretimi karışık yükleme kontrolü başarısız olsa bile
+        # ÇÖKMEMELİ — bu, ana belgenin (gönderici/alıcı/ürün bilgileri)
+        # üretilmesini engelleyecek kadar kritik bir hata değil.
+        report.compatibility_errors = []
+
     doc_info = {'document_no': document_no, 'date': document_date_str}
     
    

@@ -1059,3 +1059,40 @@ yeniden aktif olurlar — regresyon koruması kaybolmuyor). Yeni bypass
 davranışı için 2 test eklendi: form hiç görünmüyor + otomatik giriş
 yapılıyor, DB hatasında zarifçe hata (çökme değil). Suite: 284 test
 (4 bilinçli atlama).
+
+
+## KRİTİK DÜZELTME: eski sahte uyumsuzluk kontrolü hâlâ arka planda çalışıyordu
+Umut'un sorusu ("Yanici Maddeler + Yukseltgenler birlikte tasinamaz!
+hangi referansla söylüyor?") gerçek bir hatayı ortaya çıkardı: gerçek
+motoru (adr_mix_pro) iki web sayfasına bağladığımız turda, ESKİ
+basitleştirilmiş `check_compatibility()` çağrısı `webcore.engines.
+ADREngine.generate_adr_report()` fonksiyonunun İÇİNDEN kaldırılmamıştı.
+Bu, sabit/hayali bir sözlüğe dayanıyordu — GERÇEK bir ADR referansı
+YOKTU. Sonuç: hem canlı Kontrol Merkezi paneli HEM DE YAZDIRILAN Taşıma
+Evrakı belgesi, gerçek motorun sonucuyla YAN YANA, çelişebilen, kaynağı
+belirsiz bu eski mesajı da gösteriyordu.
+
+Daha ciddisi: bu yanlış veri yalnızca ekranda değil, gerçek düzenleyici
+bir belgeye (Taşıma Evrakı PDF) da karışıyordu.
+
+Düzeltme (iki adım):
+1. `webcore/engines.py`: `generate_adr_report()` içindeki
+   `check_compatibility()` çağrısı tamamen kaldırıldı —
+   `report.compatibility_errors` artık boş bırakılıyor (bu fonksiyon
+   veritabanına erişemediği için gerçek motoru zaten çalıştıramazdı).
+2. `webcore/transport_doc.py`: `build_transport_document_html()`
+   zaten `db` parametresine sahip olduğu için, rapor hesaplandıktan
+   HEMEN SONRA `report.compatibility_errors` GERÇEK motorla
+   (webcore/mix_adapter.py, masaüstünün AnaDbChemicalAdapter'ının
+   birebir web karşılığı) yeniden dolduruluyor — artık gerçek bir ADR
+   referansı (ör. "ADR 7.5.2.1") içeriyor. Hata olursa (nadiren) evrak
+   üretimi ÇÖKMEZ, yalnızca uyarı bölümü boş kalır.
+
+`sayfalar/sevkiyat_editor.py` zaten ayrı olarak gerçek motoru
+çağırıyordu — artık rapor.errors'tan gelen ESKİ mesajlarla ÇAKIŞMIYOR,
+panel temiz.
+
+Doğrulama: generate_adr_report()'un artık sahte mesaj üretmediği,
+yazdırılan belgede eski formatın kaybolup gerçek ADR referansının
+(7.5.2.1) göründüğü, uyumlu bir çiftte belgede hiç uyarı kutusu
+çıkmadığı (ters kontrol) test edildi. Suite: 287 test.

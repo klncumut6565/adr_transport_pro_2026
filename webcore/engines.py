@@ -1474,10 +1474,26 @@ class ADREngine:
                 f"Tunel kodu {tunnel}: Kisitli tunel gecisi"))
 
         # === UYUMSUZLUK KONTROLU ===
-        compat_errors = cls.check_compatibility(items)
-        for err in compat_errors:
-            report.errors.append((WarningLevel.CRITICAL, err))
-        report.compatibility_errors = compat_errors
+        # DÜZELTME (Umut'un tespiti — "hangi referansla söylüyor?"):
+        # burada ÖNCEDEN cls.check_compatibility(items) çağrılıyordu —
+        # bu, yalnızca segregation_group + sabit, HAYALİ bir sözlüğe
+        # dayanan BASİTLEŞTİRİLMİŞ bir kontroldü (gerçek bir ADR
+        # referansı YOKTU, örn. "Yanici Maddeler + Yukseltgenler
+        # birlikte tasinamaz!" gibi mesajlar uydurma bir eşleştirmeden
+        # geliyordu). Bu sonuç hem canlı Kontrol Merkezi panelinde HEM
+        # DE YAZDIRILAN Taşıma Evrakı belgesinde gösteriliyordu — ikinci
+        # gerçek motor (adr_mix_pro, webcore/mix_adapter.py) ayrıca
+        # eklendiğinde bu eski kontrol kaldırılmamıştı, ikisi YAN YANA
+        # çalışıp çelişen/güvenilmez sonuçlar üretiyordu.
+        #
+        # generate_adr_report() veritabanına erişemediği için (saf
+        # hesaplama fonksiyonu, Tablo A sorgusu yapamaz) burada GERÇEK
+        # motoru çalıştıramaz — report.compatibility_errors artık
+        # BOŞ bırakılıyor; gerçek sonuç, veritabanına erişimi olan
+        # ÇAĞIRAN taraflarca (webcore/transport_doc.py, sayfalar/
+        # sevkiyat_editor.py, sayfalar/karisik_yukleme.py) webcore/
+        # mix_adapter.py üzerinden ayrıca hesaplanıp yerleştiriliyor.
+        report.compatibility_errors = []
 
         # === LQ / EQ DURUMU ===
         if lq_count > 0:

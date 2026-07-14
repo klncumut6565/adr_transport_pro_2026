@@ -1177,3 +1177,89 @@ class TestOnizlemeJSGercektenGecerli:
         sonuc = wrap_for_screen_preview("<body>x</body>")
         assert "streamlit:setFrameHeight" in sonuc
         assert "postMessage" in sonuc
+
+
+class TestEskiSahteUyumsuzlukKontroluTamamenKaldirildi:
+    """KRİTİK düzeltme (Umut'un sorusu: 'hangi referansla söylüyor?'):
+    generate_adr_report() İÇİNDE hâlâ eski, basitleştirilmiş
+    check_compatibility() çağrılıyordu (sabit, hayali bir sözlüğe
+    dayanan, GERÇEK bir ADR referansı olmayan kontrol — ör. 'Yanici
+    Maddeler + Yukseltgenler birlikte tasinamaz!' gibi mesajlar uydurma
+    bir eşleştirmeden geliyordu). Bu, GERÇEK motor (adr_mix_pro) ayrıca
+    eklendiğinde kaldırılmamıştı — ikisi YAN YANA çalışıp hem canlı
+    panelde hem YAZDIRILAN Taşıma Evrakı belgesinde çelişen/güvenilmez
+    sonuçlar üretiyordu. Artık generate_adr_report() compatibility_
+    errors'ı boş bırakıyor; gerçek sonuç yalnızca veritabanına erişimi
+    olan çağıranlarca (transport_doc.py, sevkiyat_editor.py,
+    karisik_yukleme.py) webcore/mix_adapter.py üzerinden hesaplanıyor."""
+
+    def test_generate_adr_report_artik_sahte_mesaj_uretmiyor(self):
+        from webcore.engines import ADREngine
+        from webcore.models import ShipmentItem
+        f = ShipmentItem.__dataclass_fields__
+        mk = lambda **o: ShipmentItem(**{k: v for k, v in o.items() if k in f})
+        items = [
+            mk(un_number="0081", proper_name="PATLAYICI", class_code="1",
+              transport_category="1", net_quantity=30, unit="kg",
+              tunnel_code="B", classification_code="1.1D"),
+            mk(un_number="1978", proper_name="PROPAN", class_code="2",
+              transport_category="1", net_quantity=500, unit="kg",
+              tunnel_code="B/D", classification_code="2A"),
+        ]
+        rapor = ADREngine.generate_adr_report(items, driver=None, vehicle=None)
+        hata_metinleri = [m for _, m in rapor.errors]
+        assert not any("UYUMSUZ:" in m for m in hata_metinleri), \
+            "eski sahte matris tabanlı mesaj hâlâ üretiliyor"
+        assert rapor.compatibility_errors == []
+
+    def test_yazdirilan_belgede_gercek_motor_sonucu_var(self):
+        if not PG_DSN:
+            pytest.skip("ADR_PG_TEST_DSN tanımlı değil")
+        from webcore.pg import PgDatabaseManager
+        from webcore.transport_doc import build_transport_document_html
+        from webcore import Company, ShipmentItem
+
+        db = PgDatabaseManager(PG_DSN)
+        items = [
+            ShipmentItem(un_number="0081", proper_name="PATLAYICI", class_code="1",
+                        packing_group="", packaging_type="Kutu", packaging_count=5,
+                        net_quantity=30, unit="kg", transport_category="1",
+                        tunnel_code="B", classification_code="1.1D"),
+            ShipmentItem(un_number="1978", proper_name="PROPAN", class_code="2",
+                        packing_group="", packaging_type="Tank", packaging_count=1,
+                        net_quantity=500, unit="kg", transport_category="1",
+                        tunnel_code="B/D", classification_code="2A"),
+        ]
+        html = build_transport_document_html(
+            db=db, items=items, document_no="T-1", document_date_str="14.07.2026",
+            sender=Company(type="sender", name="A"), receiver=Company(type="receiver", name="B"),
+            driver=None, vehicle=None, status_text="Taslak", notes="")
+        assert "UYUMSUZ:" not in html, "eski sahte format belgede hâlâ görünüyor"
+        assert "7.5.2.1" in html, "gerçek ADR referansı belgede görünmüyor"
+        assert "UYUMSUZLUK UYARILARI" in html
+
+    def test_uyumlu_ciftte_belgede_sahte_uyari_gorunmez(self):
+        """Ters yönlü kontrol: motor OK derse belgede hiç uyarı KUTUSU
+        çıkmamalı (eskiden sahte matris yanlışlıkla tetikleyebiliyordu)."""
+        if not PG_DSN:
+            pytest.skip("ADR_PG_TEST_DSN tanımlı değil")
+        from webcore.pg import PgDatabaseManager
+        from webcore.transport_doc import build_transport_document_html
+        from webcore import Company, ShipmentItem
+
+        db = PgDatabaseManager(PG_DSN)
+        items = [
+            ShipmentItem(un_number="1830", proper_name="SÜLFÜRİK ASİT", class_code="8",
+                        packing_group="II", packaging_type="Varil", packaging_count=4,
+                        net_quantity=200, unit="L", transport_category="2",
+                        tunnel_code="D/E", classification_code="C1"),
+            ShipmentItem(un_number="1824", proper_name="SODYUM HİDROKSİT", class_code="8",
+                        packing_group="II", packaging_type="Varil", packaging_count=4,
+                        net_quantity=200, unit="L", transport_category="2",
+                        tunnel_code="D/E", classification_code="C5"),
+        ]
+        html = build_transport_document_html(
+            db=db, items=items, document_no="T-2", document_date_str="14.07.2026",
+            sender=Company(type="sender", name="A"), receiver=Company(type="receiver", name="B"),
+            driver=None, vehicle=None, status_text="Taslak", notes="")
+        assert "UYUMSUZLUK UYARILARI" not in html
