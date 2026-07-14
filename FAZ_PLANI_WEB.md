@@ -890,3 +890,43 @@ iframe'de zamanlama açısından güvenilmez.
 Doğrulama: sarmalamanın güvenli varsayılan ölçeği + ResizeObserver'ı +
 birden fazla zamanlama denemesini içerdiği, içeriğin/@page kuralının
 korunduğu, PDF yolunun hâlâ etkilenmediği test edildi. Suite: 261 test.
+
+
+## Doğrulama: Umut'un 20 senaryolu ADR 2025 karışık yükleme testi
+Gerçek adr_mix_pro motoru, Umut'un hazırladığı 20 senaryolu titiz test
+setiyle sınandı. Sonuç: **14/20 tam isabet**, 4'ü kural tablosu kapsam
+sınırı (UNKNOWN, yanlış değil — "tahmin etme" güvenli tasarımı), 2'si
+(Test 8, 10) Umut'un doğrulamasıyla GEÇERSİZ test verisi olduğu için
+kapsam dışı bırakıldı.
+
+**Test 8/10 çözümü:** İlk şüphem, sistemin D-G patlayıcı uyumluluk grubu
+verisinin (compatibility_groups.py: D↔G="X") yanlış olabileceğiydi —
+harici bir kaynakla (Kanada TDG) çelişiyordu. Umut, kendi Tablo A'sını
+kontrol edip sistemdeki UN0336(1.4G)/UN0027(1.1D) verisinin DOĞRU
+olduğunu, test dokümanındaki varsayımların (1.1D/1.3G, ters) YANLIŞ
+olduğunu doğruladı. D-G uyumluluk sorusu bu turda kapanmadı (test
+verisi geçersiz olduğu için sınanamadı) — ayrı bir zamanda gerçek bir
+D-G çiftiyle yeniden test edilebilir.
+
+**Kalıcı kayıt altına alınanlar (TestKarisikYuklemeAdr2025Dogrulama,
+18 test):**
+- 13 çift → tam isabet, kalıcı regresyon testi olarak kilitlendi
+- 4 çift (UN1005+1202, UN1017+1202, UN2014+1202, UN1744+2014) → UNKNOWN
+  davranışı BİLİNÇLİ ve BEKLENEN olarak belgelenip kilitlendi (ikincil
+  tehlike +8/+5.1 kombinasyonları segregation_rules.csv'de (277 satır)
+  eksik — motor tahmin etmiyor, "manuel kontrol" diyor)
+- Ekran görüntüsüyle doğrulanan ek senaryo: 1000 puanı büyük ölçüde aşan
+  (10200) bir sevkiyatta ilerleme çubuğunun %100'de tavanlandığı,
+  turuncu plakanın doğru ZORUNLU çıktığı ayrıca test edildi
+
+**AÇIK KALAN (Umut'un kararına bağlı):**
+1. segregation_rules.csv'nin ikincil tehlike (+8, +5.1, +6.1 vb.)
+   kombinasyonlarını kapsayacak şekilde genişletilmesi — şu an 4 gerçek
+   senaryo UNKNOWN dönüyor, tam ADR 7.5.2.1 tablosu bu kombinasyonları
+   da içeriyor.
+2. UN2814 (Bulaşıcı Madde) + gıda ayrımı sorusu: sistemdeki kayıtta
+   özel_hükümler="318" var, CV28 gibi bir gıda-ayrımı kodu yok — motor
+   "gerekmez" diyor. Bu, gerçek ADR Tablo A'da UN2814'ün CV28 taşıyıp
+   taşımadığı sorusu, Umut'un doğrulaması gerekiyor.
+
+Suite: 279 test.

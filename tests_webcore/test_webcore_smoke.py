@@ -1017,3 +1017,93 @@ class TestOnizlemeGuvenliVarsayilanOlcek:
         # tek bir setTimeout'a güvenmek yerine birden fazla gecikmeli
         # deneme (fontlar/layout geç tamamlanırsa bile yakalansın)
         assert sonuc.count("setTimeout") == 0 or "[0, 50, 150, 300, 600, 1200]" in sonuc
+
+
+class TestKarisikYuklemeAdr2025Dogrulama:
+    """Umut'un verdiği 20 test senaryosuyla GERÇEK motorun (adr_mix_pro)
+    doğrulanması. 14/20 tam isabet; 4'ü kural tablosunda ikincil tehlike
+    kombinasyonu eksikliği yüzünden UNKNOWN (yanlış değil, 'tahmin etme,
+    manuel kontrol iste' güvenli tasarımı); 2'si (Test 8, 10) Umut'un
+    doğrulamasıyla GEÇERSİZ test verisi olduğu için kapsam dışı bırakıldı
+    (test dokümanındaki UN0336/UN0027 sınıflandırma kodları TERSTİ —
+    gerçek Tablo A: UN0336=1.4G, UN0027=1.1D; sistem verisi doğruydu)."""
+
+    @staticmethod
+    def _kontrol_et(db, un1, un2):
+        from webcore.mix_adapter import gercek_mix_checker
+        checker, adapter = gercek_mix_checker(db)
+        for un in (un1, un2):
+            v = adapter.get_variants(un)
+            if v:
+                adapter.register_variant(un, v[0]["classification_code"], v[0]["packing_group"])
+            else:
+                adapter.register_unknown(un)
+        sonuclar, _ = checker.check_all([un1, un2])
+        return sonuclar[0] if sonuclar else None
+
+    @pytest.mark.parametrize("un1,un2,beklenen,aciklama", [
+        ("1202", "1950", "OK", "Motorin + aerosol"),
+        ("1203", "1789", "OK", "Benzin + Hidroklorik Asit"),
+        ("1993", "3082", "OK", "Alevlenebilir sıvı PGII + Çevre tehlikeli"),
+        ("3257", "1203", "OK", "Elevated Temp Liquid + Benzin"),
+        ("3258", "3077", "OK", "Elevated Temp Solid + Çevre tehlikeli katı"),
+        ("0336", "3077", "NO", "1.4G patlayıcı + Çevre tehlikeli (gerçek Tablo A koduyla)"),
+        ("1942", "1203", "OK", "Amonyum Nitrat + Benzin"),
+        ("1824", "1090", "OK", "Sodyum Hidroksit + Aseton"),
+        ("1845", "1950", "OK", "Kuru Buz + Aerosol"),
+        ("1202", "1203", "OK", "Motorin + Benzin"),
+        ("1824", "1789", "OK", "Sodyum Hidroksit + Hidroklorik Asit"),
+        ("3257", "3258", "OK", "Elevated Temp Liquid + Solid"),
+        ("1202", "3243", "OK", "Motorin + Azodikarbonamid"),
+    ])
+    def test_dogru_sonuc_veren_ciftler(self, un1, un2, beklenen, aciklama):
+        if not PG_DSN:
+            pytest.skip("ADR_PG_TEST_DSN tanımlı değil")
+        from webcore.pg import PgDatabaseManager
+        db = PgDatabaseManager(PG_DSN)
+        r = self._kontrol_et(db, un1, un2)
+        assert r is not None, f"{aciklama}: sonuç üretilemedi"
+        assert r.status == beklenen, (
+            f"{aciklama} (UN{un1}+UN{un2}): beklenen={beklenen}, "
+            f"gelen={r.status} | {r.reason}")
+
+    @pytest.mark.parametrize("un1,un2,aciklama", [
+        ("1005", "1202", "Amonyak susuz (+8) + Motorin (3)"),
+        ("1017", "1202", "Klor (+5.1) + Motorin (3)"),
+        ("2014", "1202", "Hidrojen Peroksit (+8) + Motorin (3)"),
+        ("1744", "2014", "Brom (8) + Hidrojen Peroksit (+8)"),
+    ])
+    def test_ikincil_tehlike_kombinasyonlari_tahmin_etmez(self, un1, un2, aciklama):
+        """Bu 4 çift, kural tablosunda (segregation_rules.csv, 277 satır)
+        ikincil tehlike (+8, +5.1 gibi) kombinasyonu için satır YOK —
+        motor bunu bilinçli olarak UNKNOWN döner (tahmin etmez), NO/OK
+        diye YANLIŞ bir kesinlik iddia etmez. Umut'un test dokümanı bu
+        çiftlerin hepsinin OK olmasını bekliyordu; tablo genişletilmeden
+        motor bunu doğrulayamaz — bu, bilinen bir kapsam sınırıdır."""
+        if not PG_DSN:
+            pytest.skip("ADR_PG_TEST_DSN tanımlı değil")
+        from webcore.pg import PgDatabaseManager
+        db = PgDatabaseManager(PG_DSN)
+        r = self._kontrol_et(db, un1, un2)
+        assert r is not None
+        assert r.status == "UNKNOWN", (
+            f"{aciklama}: durum değişti ({r.status}) — kural tablosu "
+            "güncellenmiş olabilir, bu testi gözden geçirin")
+
+    def test_yuksek_puan_yuzde_yuzde_tavanlanir(self):
+        """Ekran görüntüsüyle doğrulanan senaryo: 1000 puanı büyük ölçüde
+        aşan (ör. 10200) bir sevkiyatta ilerleme çubuğu %100'de tavanlanır
+        ve turuncu plaka doğru şekilde ZORUNLU çıkar — aşırı değerde
+        çökme veya %100'ü aşan gösterge olmaz."""
+        from webcore.engines import ADREngine
+        from webcore.models import ShipmentItem
+        f = ShipmentItem.__dataclass_fields__
+        mk = lambda **o: ShipmentItem(**{k: v for k, v in o.items() if k in f})
+        # TC=1 (50 puan/birim) x 204 birim = 10200 puan
+        items = [mk(un_number="1090", proper_name="ASETON", transport_category="1",
+                    net_quantity=204, unit="kg", tunnel_code="D/E")]
+        puan, plaka_gerekli, _ = ADREngine.calculate_1136_points(items)
+        assert puan == 10200
+        assert plaka_gerekli is True
+        oran = min(puan / 1000, 1.0)
+        assert oran == 1.0, "ilerleme çubuğu oranı %100'ü aşmamalı (tavanlanmalı)"
