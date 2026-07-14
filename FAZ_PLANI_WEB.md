@@ -932,3 +932,17 @@ bir zamanda gerçek bir D-G çiftiyle yeniden test edilebilir.
    taşımadığı sorusu, Umut'un doğrulaması gerekiyor.
 
 Suite: 278 test (Test 9 çıkarıldıktan sonra).
+
+
+## Düzeltme: boş durumda yanıltıcı 'turuncu plaka gerekmez' sonucu
+Umut'un tespiti: hiç ürün eklenmeden önce panel "0/1000 puan (%0)" +
+yeşil "Turuncu plaka gerekmez (1.1.3.6 muafiyeti)" gösteriyordu — bu,
+sanki bir sonuca varılmış gibi YANILTICIYDI; aslında henüz hiçbir şey
+hesaplanmamıştı, hesaplanacak veri yoktu. Düzeltme: `items` boşken artık
+nötr bir "Ürün eklendikçe puan ve turuncu plaka durumu burada
+hesaplanacak." mesajı gösteriliyor; ürün eklenince normal hesaplama
+(ilerleme çubuğu + gerçek plaka durumu) devam ediyor, davranış değişmedi.
+
+Doğrulama: boş durumda ne yanıltıcı "gerekmez" mesajının ne de "0/1000"
+metninin göründüğü, yeni bilgi mesajının doğru çıktığı, ürün eklenince
+normal hesaplamanın bozulmadan devam ettiği test edildi. Suite: 280 test.

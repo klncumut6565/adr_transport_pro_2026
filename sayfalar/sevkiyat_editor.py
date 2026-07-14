@@ -462,12 +462,22 @@ with sag:
     tunel = rapor.tunnel_code if rapor else "—"
 
     st.markdown("**1.1.3.6 — Miktar Muafiyeti**")
-    oran = min(puan / 1000, 1.0) if puan else 0.0
-    st.progress(oran, text=f"{puan:.0f} / 1000 puan ({oran*100:.0f}%)")
-    if plaka_gerekli:
-        st.error("🔶 Turuncu plaka ZORUNLU")
+    if not items:
+        # DÜZELTME (Umut'un tespiti): ürün eklenmeden önce "0/1000 puan
+        # (%0)" + yeşil "Turuncu plaka gerekmez" gösterilmesi, sanki bir
+        # sonuca varılmış gibi YANILTICI'ydı — aslında henüz hiçbir şey
+        # HESAPLANMADI, hesaplanacak veri yok. Artık nötr bir "henüz
+        # hesaplanamıyor" mesajı gösteriliyor, yanlış bir "güvenli"
+        # izlenimi verilmiyor.
+        st.info("Ürün eklendikçe puan ve turuncu plaka durumu burada "
+                "hesaplanacak.")
     else:
-        st.success("✅ Turuncu plaka gerekmez (1.1.3.6 muafiyeti)")
+        oran = min(puan / 1000, 1.0) if puan else 0.0
+        st.progress(oran, text=f"{puan:.0f} / 1000 puan ({oran*100:.0f}%)")
+        if plaka_gerekli:
+            st.error("🔶 Turuncu plaka ZORUNLU")
+        else:
+            st.success("✅ Turuncu plaka gerekmez (1.1.3.6 muafiyeti)")
 
     st.divider()
 

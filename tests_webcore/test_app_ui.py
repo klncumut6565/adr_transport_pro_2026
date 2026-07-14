@@ -660,3 +660,49 @@ class TestIkinciUrunEklemeDonmasi:
         src = open("sayfalar/sevkiyat_editor.py", encoding="utf-8").read()
         assert 'key=f"urun_arama_kutusu_{len(kalemler)}"' in src, \
             "arama kutusu anahtarı sabitlenmiş görünüyor, donma riski geri gelebilir"
+
+
+class TestBosDurumdaYaniltciSonucGosterilmez:
+    """Düzeltme (Umut'un tespiti): hiç ürün eklenmeden önce panel
+    '0/1000 puan (%0)' + yeşil 'Turuncu plaka gerekmez' gösteriyordu —
+    sanki bir sonuca varılmış gibi YANILTICI'ydı, aslında henüz hiçbir
+    şey hesaplanmadı. Artık nötr bir 'ürün eklendikçe hesaplanacak'
+    mesajı gösteriliyor."""
+
+    def test_bos_durumda_yaniltici_mesaj_yok(self):
+        if not PG_DSN:
+            pytest.skip("ADR_PG_TEST_DSN_APP tanımlı değil")
+        from streamlit.testing.v1 import AppTest
+        t = AppTest.from_file("sayfalar/sevkiyat_editor.py", default_timeout=40)
+        t.secrets["db"] = {"dsn": PG_DSN}
+        t.session_state["user"] = {"username": "umut", "tenant_id": 1,
+                                   "role": "admin", "full_name": "U"}
+        t.run()
+        assert not t.exception
+        metin = " | ".join(str(x.value) for x in
+                           (list(t.error) + list(t.success) + list(t.warning) + list(t.info)))
+        assert "Turuncu plaka gerekmez" not in metin
+        assert "0 / 1000" not in metin
+        assert any("hesaplanacak" in str(x.value) for x in t.info)
+
+    def test_urun_eklenince_normal_hesaplama_calisir(self):
+        if not PG_DSN:
+            pytest.skip("ADR_PG_TEST_DSN_APP tanımlı değil")
+        from streamlit.testing.v1 import AppTest
+        t = AppTest.from_file("sayfalar/sevkiyat_editor.py", default_timeout=40)
+        t.secrets["db"] = {"dsn": PG_DSN}
+        t.session_state["user"] = {"username": "umut", "tenant_id": 1,
+                                   "role": "admin", "full_name": "U"}
+        t.run()
+        t.session_state["editor_kalemler"] = [dict(
+            id=None, shipment_id=None, chemical_id=1, un_number="1203",
+            proper_name="BENZİN", class_code="3", packing_group="II",
+            packaging_type="Varil", packaging_count=4, net_quantity=200.0,
+            gross_quantity=200.0, unit="lt", is_lq=False, is_eq=False,
+            lq_max_per_package=0.0, eq_max_per_package=0.0, notes="",
+            tunnel_code="D/E", segregation_group="", classification_code="F1",
+            transport_category="2", special_provisions="")]
+        t.run()
+        assert not t.exception
+        metin = " | ".join(str(x.value) for x in (list(t.error) + list(t.success)))
+        assert "Turuncu plaka" in metin, "ürün eklendikten sonra hesaplama kaybolmamalı"
