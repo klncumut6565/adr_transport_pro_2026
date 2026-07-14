@@ -1047,7 +1047,12 @@ class TestKarisikYuklemeAdr2025Dogrulama:
         ("1993", "3082", "OK", "Alevlenebilir sıvı PGII + Çevre tehlikeli"),
         ("3257", "1203", "OK", "Elevated Temp Liquid + Benzin"),
         ("3258", "3077", "OK", "Elevated Temp Solid + Çevre tehlikeli katı"),
-        ("0336", "3077", "NO", "1.4G patlayıcı + Çevre tehlikeli (gerçek Tablo A koduyla)"),
+        # NOT: Test 9 (UN0336+UN3077) buradan ÇIKARILDI — Umut, Test 8/10
+        # ile aynı kaynaktan (test dokümanındaki UN0336 sınıflandırma
+        # karışıklığı) geldiğini belirtip üçünü de görmezden gelmemi
+        # istedi. Gerçek Tablo A koduyla (1.4G) alınan "NO" sonucu teknik
+        # olarak sorunsuz üretildi ama Umut bu üç testin güvenilirliğinden
+        # emin olmadığını söyledi — kayıt dışı bırakıldı.
         ("1942", "1203", "OK", "Amonyum Nitrat + Benzin"),
         ("1824", "1090", "OK", "Sodyum Hidroksit + Aseton"),
         ("1845", "1950", "OK", "Kuru Buz + Aerosol"),

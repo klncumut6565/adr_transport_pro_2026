@@ -899,18 +899,20 @@ sınırı (UNKNOWN, yanlış değil — "tahmin etme" güvenli tasarımı), 2'si
 (Test 8, 10) Umut'un doğrulamasıyla GEÇERSİZ test verisi olduğu için
 kapsam dışı bırakıldı.
 
-**Test 8/10 çözümü:** İlk şüphem, sistemin D-G patlayıcı uyumluluk grubu
+**Test 8/9/10 çözümü (Umut'un talebiyle güncellendi):** İlk şüphem, sistemin D-G patlayıcı uyumluluk grubu
 verisinin (compatibility_groups.py: D↔G="X") yanlış olabileceğiydi —
 harici bir kaynakla (Kanada TDG) çelişiyordu. Umut, kendi Tablo A'sını
 kontrol edip sistemdeki UN0336(1.4G)/UN0027(1.1D) verisinin DOĞRU
 olduğunu, test dokümanındaki varsayımların (1.1D/1.3G, ters) YANLIŞ
-olduğunu doğruladı. D-G uyumluluk sorusu bu turda kapanmadı (test
-verisi geçersiz olduğu için sınanamadı) — ayrı bir zamanda gerçek bir
-D-G çiftiyle yeniden test edilebilir.
+olduğunu doğruladı. Umut ardından Test 9'un da (UN0336+UN3077) aynı
+kaynaktan geldiğini belirtip üçünü de (8/9/10) görmezden almamı istedi
+— Test 9'un kilitli regresyon testi de kaldırıldı. D-G uyumluluk sorusu
+bu turda kapanmadı (test verisi geçersiz olduğu için sınanamadı) — ayrı
+bir zamanda gerçek bir D-G çiftiyle yeniden test edilebilir.
 
 **Kalıcı kayıt altına alınanlar (TestKarisikYuklemeAdr2025Dogrulama,
 18 test):**
-- 13 çift → tam isabet, kalıcı regresyon testi olarak kilitlendi
+- 13 çift → tam isabet, kalıcı regresyon testi olarak kilitlendi (Test 9 sonradan Umut'un talebiyle çıkarıldı — bkz. yukarı)
 - 4 çift (UN1005+1202, UN1017+1202, UN2014+1202, UN1744+2014) → UNKNOWN
   davranışı BİLİNÇLİ ve BEKLENEN olarak belgelenip kilitlendi (ikincil
   tehlike +8/+5.1 kombinasyonları segregation_rules.csv'de (277 satır)
@@ -929,4 +931,4 @@ D-G çiftiyle yeniden test edilebilir.
    "gerekmez" diyor. Bu, gerçek ADR Tablo A'da UN2814'ün CV28 taşıyıp
    taşımadığı sorusu, Umut'un doğrulaması gerekiyor.
 
-Suite: 279 test.
+Suite: 278 test (Test 9 çıkarıldıktan sonra).
