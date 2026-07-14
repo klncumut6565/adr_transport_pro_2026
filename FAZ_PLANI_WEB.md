@@ -760,3 +760,30 @@ deneyimini sadeleştirdi.
 Doğrulama: DB'ye kasıtlı yanlış bağlantı dizesiyle bağlanıp uyarının
 göstermediği + giriş formunun yine de göründüğü + bayrağın tek satırla
 geri açılabilir olduğu test edildi. Suite: 248 test.
+
+
+## KRİTİK düzeltme: Canlı Önizleme "Gerekli bir kütüphane kurulu değil" hatası
+Kök sebep: `webcore/transport_doc.py`'de `import qrcode`, fonksiyonun EN
+BAŞINDA, `doc_show_qr` ayarı KAPALI olsa bile KOŞULSUZ çalışıyordu.
+`qrcode` paketi `requirements.txt`'te hiç yoktu (Streamlit Cloud'da kurulu
+değildi) — bu yüzden Canlı Önizleme/PDF üretimi HER ZAMAN, QR kodu hiç
+istenmese bile "Gerekli bir kütüphane kurulu değil" hatasıyla çöküyordu.
+
+İlk şüphem Pillow'du (aynı dosyada `build_letterhead_watermark_b64`
+Pillow kullanıyor) — ama test ettim, o zaten kendi ImportError'ını
+zarifçe yutuyordu (Pillow yokken bile çalışıyor). Sistematik bir AST
+taramasıyla webcore/ altındaki TÜM üçüncü parti importları
+requirements.txt ile karşılaştırınca gerçek suçlu bulundu: qrcode.
+
+Düzeltme: import artık yalnız `show_qr` gerçekten True ise çalışıyor
+(fonksiyon başından `if show_qr:` bloğunun içine taşındı) + kendi
+ImportError'ını da Pillow'daki gibi zarifçe yutuyor (paket yine de eksik
+kalırsa QR'sız devam eder, çökmez) + paket gerçekten requirements.txt'e
+eklendi (qrcode[pil]).
+
+Doğrulama: 4 kombinasyon test edildi (QR açık/kapalı × paket kurulu/eksik)
+— hepsi doğru davranıyor; en kritik olanı (3. senaryo: QR kapalı + paket
+eksik) artık başarılı, bu asıl hatanın birebir kanıtıydı. Ayrıca AST
+taramasıyla webcore/ genelinde başka gizli eksik bağımlılık kalmadığı
+doğrulandı (Pillow, qrcode, weasyprint, psycopg, rapidfuzz, openpyxl,
+streamlit — hepsi requirements.txt'te). Suite: 251 test.

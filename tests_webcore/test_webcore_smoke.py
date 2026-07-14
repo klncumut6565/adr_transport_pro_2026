@@ -779,3 +779,111 @@ class TestOnbellekliListelerSessionState:
         finally:
             PgDatabaseManager.get_companies = orijinal
             gercek_db.execute_update("DELETE FROM companies")
+
+
+class TestQRCodeGevsekBagimlilik:
+    """KRİTİK düzeltme: transport_doc.py'de 'import qrcode' fonksiyonun
+    EN BAŞINDA, doc_show_qr ayarı KAPALI olsa bile KOŞULSUZ çalışıyordu.
+    qrcode paketi requirements.txt'te hiç yoktu (Streamlit Cloud'da kurulu
+    değildi) — bu yüzden Canlı Önizleme HER ZAMAN 'Gerekli bir kütüphane
+    kurulu değil' hatasıyla çöküyordu, QR hiç istenmese bile. Import artık
+    yalnız gerçekten gerektiğinde (show_qr=True) çalışıyor + paket
+    requirements.txt'e gerçekten eklendi + eksik olsa bile zarif devam eder."""
+
+    def test_qr_kapaliyken_paket_eksik_olsa_bile_calisir(self):
+        """Asıl hata senaryosunun birebir kanıtı."""
+        if not PG_DSN:
+            pytest.skip("ADR_PG_TEST_DSN tanımlı değil")
+        import sys, builtins
+        from webcore.pg import PgDatabaseManager
+        from webcore.transport_doc import build_transport_document_html
+        from webcore import Company, ShipmentItem
+
+        db = PgDatabaseManager(PG_DSN)
+        db.set_setting("doc_show_qr", "0")
+        items = [ShipmentItem(un_number="1203", proper_name="BENZİN",
+                              class_code="3", packing_group="II",
+                              packaging_type="Varil", packaging_count=4,
+                              net_quantity=200, unit="L",
+                              transport_category="2", tunnel_code="D/E")]
+
+        orijinal = builtins.__import__
+        def sahte(ad, *a, **kw):
+            if ad == "qrcode" or ad.startswith("qrcode."):
+                raise ImportError("simüle edildi")
+            return orijinal(ad, *a, **kw)
+        for m in list(sys.modules):
+            if m == "qrcode" or m.startswith("qrcode."):
+                del sys.modules[m]
+        builtins.__import__ = sahte
+        try:
+            html = build_transport_document_html(
+                db=db, items=items, document_no="T-1",
+                document_date_str="01.01.2026",
+                sender=Company(type="sender", name="A"),
+                receiver=Company(type="receiver", name="B"),
+                driver=None, vehicle=None, status_text="Taslak", notes="")
+            assert len(html) > 1000
+        finally:
+            builtins.__import__ = orijinal
+
+    def test_qr_aciklen_paket_eksikse_zarif_devam_eder(self):
+        if not PG_DSN:
+            pytest.skip("ADR_PG_TEST_DSN tanımlı değil")
+        import sys, builtins
+        from webcore.pg import PgDatabaseManager
+        from webcore.transport_doc import build_transport_document_html
+        from webcore import Company, ShipmentItem
+
+        db = PgDatabaseManager(PG_DSN)
+        db.set_setting("doc_show_qr", "1")
+        items = [ShipmentItem(un_number="1203", proper_name="BENZİN",
+                              class_code="3", packing_group="II",
+                              packaging_type="Varil", packaging_count=4,
+                              net_quantity=200, unit="L",
+                              transport_category="2", tunnel_code="D/E")]
+        orijinal = builtins.__import__
+        def sahte(ad, *a, **kw):
+            if ad == "qrcode" or ad.startswith("qrcode."):
+                raise ImportError("simüle edildi")
+            return orijinal(ad, *a, **kw)
+        for m in list(sys.modules):
+            if m == "qrcode" or m.startswith("qrcode."):
+                del sys.modules[m]
+        builtins.__import__ = sahte
+        try:
+            html = build_transport_document_html(
+                db=db, items=items, document_no="T-1",
+                document_date_str="01.01.2026",
+                sender=Company(type="sender", name="A"),
+                receiver=Company(type="receiver", name="B"),
+                driver=None, vehicle=None, status_text="Taslak", notes="")
+            assert len(html) > 1000
+            assert "Firma Kartviziti" not in html  # QR paketi yoksa görsel de yok
+        finally:
+            builtins.__import__ = orijinal
+            db.set_setting("doc_show_qr", "0")
+
+    def test_qr_acikken_paket_kuruluysa_gorsel_uretilir(self):
+        if not PG_DSN:
+            pytest.skip("ADR_PG_TEST_DSN tanımlı değil")
+        pytest.importorskip("qrcode")
+        from webcore.pg import PgDatabaseManager
+        from webcore.transport_doc import build_transport_document_html
+        from webcore import Company, ShipmentItem
+
+        db = PgDatabaseManager(PG_DSN)
+        db.set_setting("doc_show_qr", "1")
+        items = [ShipmentItem(un_number="1203", proper_name="BENZİN",
+                              class_code="3", packing_group="II",
+                              packaging_type="Varil", packaging_count=4,
+                              net_quantity=200, unit="L",
+                              transport_category="2", tunnel_code="D/E")]
+        html = build_transport_document_html(
+            db=db, items=items, document_no="T-1",
+            document_date_str="01.01.2026",
+            sender=Company(type="sender", name="A"),
+            receiver=Company(type="receiver", name="B"),
+            driver=None, vehicle=None, status_text="Taslak", notes="")
+        assert "Firma Kartviziti" in html and "data:image/png" in html
+        db.set_setting("doc_show_qr", "0")

@@ -36,8 +36,6 @@ def build_transport_document_html(*, db, items, document_no: str,
     """
     import html as _h
     from datetime import timedelta
-    import qrcode  # <--- BURADA OLMALI
-    import io      # <--- BURADA OLMALI
     import base64
     
     
@@ -71,6 +69,20 @@ def build_transport_document_html(*, db, items, document_no: str,
 
     qr_html = ""
     if show_qr:
+        # DÜZELTME: "import qrcode" önceden bu fonksiyonun EN BAŞINDA,
+        # KOŞULSUZ çalışıyordu — doc_show_qr ayarı KAPALI olsa bile.
+        # qrcode paketi requirements.txt'te hiç yoktu (Streamlit Cloud'da
+        # kurulu değildi), bu yüzden evrak üretiminin TAMAMI (QR
+        # istenmese bile) "Gerekli bir kütüphane kurulu değil" hatasıyla
+        # çöküyordu. Artık import yalnız gerçekten QR gerektiğinde
+        # çalışıyor + paket gerçekten eklendi (requirements.txt) + eksik
+        # olsa bile (ör. başka bir ortamda) QR'sız zarif devam ediyor.
+        try:
+            import qrcode
+            import io
+        except ImportError:
+            qrcode = None
+
         # ── vCard kartvizit verisi oluştur ──────────────────────────────
         co_name  = db.get_setting("doc_company_name")  or ""
         co_addr  = db.get_setting("doc_company_address") or ""
@@ -98,24 +110,25 @@ def build_transport_document_html(*, db, items, document_no: str,
         vcard_lines.append("END:VCARD")
         vcard_data = "\r\n".join(vcard_lines)
 
-        qr = qrcode.QRCode(
-            version=None,
-            error_correction=qrcode.constants.ERROR_CORRECT_M,
-            box_size=4,
-            border=1,
-        )
-        qr.add_data(vcard_data)
-        qr.make(fit=True)
-        qr_img = qr.make_image(fill_color="black", back_color="white")
-        buffer = io.BytesIO()
-        qr_img.save(buffer, format="PNG")
-        qr_b64 = base64.b64encode(buffer.getvalue()).decode()
-        qr_html = (
-            f'<img src="data:image/png;base64,{qr_b64}" '
-            f'width="55" height="55" '
-            f'style="width:55px;height:55px;display:block;" '
-            f'title="Firma Kartviziti">'
-        )
+        if qrcode is not None:
+            qr = qrcode.QRCode(
+                version=None,
+                error_correction=qrcode.constants.ERROR_CORRECT_M,
+                box_size=4,
+                border=1,
+            )
+            qr.add_data(vcard_data)
+            qr.make(fit=True)
+            qr_img = qr.make_image(fill_color="black", back_color="white")
+            buffer = io.BytesIO()
+            qr_img.save(buffer, format="PNG")
+            qr_b64 = base64.b64encode(buffer.getvalue()).decode()
+            qr_html = (
+                f'<img src="data:image/png;base64,{qr_b64}" '
+                f'width="55" height="55" '
+                f'style="width:55px;height:55px;display:block;" '
+                f'title="Firma Kartviziti">'
+            )
         
     logo_html = ""
 
