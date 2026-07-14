@@ -985,3 +985,35 @@ class TestGercekKarisikYuklemeMotoru:
         kod_metni = "\n".join(kod_satirlari)
         assert "from adr_mix_pro.core.database" not in kod_metni
         assert "import ProductDatabase" not in kod_metni
+
+
+class TestOnizlemeGuvenliVarsayilanOlcek:
+    """Düzeltme (Umut'un 2. tespiti — 'tam sığmadı, sadece %33 zoom'da
+    sığıyor'): ilk düzeltmenin JS'i (load/resize + birkaç setTimeout)
+    Streamlit'in components.html/srcdoc ortamında güvenilir çalışmadı —
+    JS hiç tetiklenmemiş gibi davrandı. İki katmanlı çözüm: (1) JS
+    çalışmasa/gecikse BİLE geçerli olan satır-içi CSS varsayılan ölçek
+    (0.5), (2) 'load' yerine ResizeObserver (zamanlama varsayımına
+    dayanmaz, konteynerin GERÇEK nihai boyutuna ulaştığı anda tetiklenir)."""
+
+    def test_guvenli_varsayilan_olcek_hep_uygulanir(self):
+        from webcore.pdf import wrap_for_screen_preview
+        sonuc = wrap_for_screen_preview("<body>test-icerik</body>")
+        # JS hiç çalışmasa bile (ör. çok eski tarayıcı) bu satır-içi
+        # CSS zaten devrede olmalı — "hiç sığmama" riski böylece yok.
+        assert "scale(0.5)" in sonuc
+
+    def test_resize_observer_kullaniliyor_load_olayina_tek_basina_guvenilmiyor(self):
+        from webcore.pdf import wrap_for_screen_preview
+        sonuc = wrap_for_screen_preview("<body>x</body>")
+        assert "ResizeObserver" in sonuc
+        # 'load' hâlâ ek güvenlik ağı olarak dursun (kaldırılmadı) ama
+        # TEK dayanak noktası olmaktan çıktı
+        assert "addEventListener('load'" in sonuc
+
+    def test_birden_fazla_zamanlama_denemesi_var(self):
+        from webcore.pdf import wrap_for_screen_preview
+        sonuc = wrap_for_screen_preview("<body>x</body>")
+        # tek bir setTimeout'a güvenmek yerine birden fazla gecikmeli
+        # deneme (fontlar/layout geç tamamlanırsa bile yakalansın)
+        assert sonuc.count("setTimeout") == 0 or "[0, 50, 150, 300, 600, 1200]" in sonuc

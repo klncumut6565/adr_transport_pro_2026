@@ -865,3 +865,28 @@ bilmiyordu); UN1830+UN1824 (ikisi Sınıf 8) → OK dönüyor (motorun her
 dönüyor; zincirde pandas gerektiren dosya-tabanlı ProductDatabase'e HİÇ
 dokunulmadığı statik olarak doğrulandı (pandas zaten Streamlit'in kendi
 zorunlu bağımlılığı, ekstra risk yok). Suite: 258 test.
+
+
+## Düzeltme (2. tur): PDF önizlemesi hâlâ sığmıyordu — JS zamanlama sorunu
+Umut'un ekran görüntüsü kanıtladı: önizleme yalnızca tarayıcı %33'e
+küçültülünce sığıyordu — yani ilk düzeltmenin JS ölçekleme mantığı
+Streamlit'in components.html/srcdoc ortamında hiç çalışmamıştı.
+
+Kök sebep (kesinleştirilemedi ama en olası): `window.addEventListener
+('load', ...)` + birkaç setTimeout, srcdoc ile yerleştirilen bir
+iframe'de zamanlama açısından güvenilmez.
+
+İki katmanlı düzeltme:
+1. **Güvenli varsayılan ölçek:** JS hiç çalışmasa/gecikse BİLE geçerli
+   olan satır-içi CSS `transform: scale(0.5)` — artık "JS çalışmazsa hiç
+   sığmama" senaryosu yapısal olarak imkansız, en kötü ihtimalle sabit
+   %50 küçültme uygulanır (dar panelde makul bir varsayım).
+2. **ResizeObserver:** `load` olayına tek başına güvenmek yerine, tarayıcının
+   KENDİSİ konteynerin GERÇEK nihai boyutuna ulaştığında tetiklediği
+   `ResizeObserver` API'sine geçildi — zamanlama varsayımına dayanmaz.
+   `load`/`resize` + 6 farklı gecikmeli deneme (0-1200ms) ek güvenlik ağı
+   olarak korundu.
+
+Doğrulama: sarmalamanın güvenli varsayılan ölçeği + ResizeObserver'ı +
+birden fazla zamanlama denemesini içerdiği, içeriğin/@page kuralının
+korunduğu, PDF yolunun hâlâ etkilenmediği test edildi. Suite: 261 test.

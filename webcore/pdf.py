@@ -39,23 +39,41 @@ def wrap_for_screen_preview(html: str) -> str:
 
     Sorun 2 (Umut'un tespiti — "tam sığmadı"): sabit `width: 210mm`
     (~794px), ADR Kontrol Merkezi panelinin DAR sağ sütununda (toplam
-    genişliğin ~%30'u) yatay taşmaya/kırpılmaya yol açıyordu — panel her
-    zaman 794px genişliğinde olmadığı için sabit boyut yanlış varsayımdı.
+    genişliğin ~%30'u) yatay taşmaya/kırpılmaya yol açıyordu.
+
+    Sorun 3 (Umut'un 2. tespiti): ilk düzeltme JS'i `window.addEventListener
+    ('load', ...)` + birkaç setTimeout ile tetikliyordu — bu, Streamlit'in
+    components.html'inin içeriği bir iframe'e `srcdoc` ile yazma biçimiyle
+    ZAMANLAMA AÇISINDAN güvenilir çalışmadı (kullanıcı yalnızca tarayıcıyı
+    %33'e küçültünce içeriğin sığdığını bildirdi — JS hiç doğru çalışmamış
+    demekti). Çözüm: `load` olayına güvenmek yerine `ResizeObserver`
+    kullanılıyor — bu API tarayıcının KENDİSİ tarafından, konteynerin
+    GERÇEKTEN nihai boyutuna ulaştığı anda tetiklenir, zamanlama
+    varsayımına dayanmaz. Ayrıca JS hiç çalışmasa bile (eski tarayıcı,
+    script hatası) makul bir GÜVENLİ VARSAYILAN ölçek (0.5) satır-içi
+    CSS ile baştan uygulanıyor — "JS çalışmazsa hiç sığmama" riski ortadan
+    kalkıyor.
 
     Çözüm: sayfa A4 oranlarında (210mm) SABİT genişlikte inşa edilir,
-    ama JS ile iframe'in GERÇEK kullanılabilir genişliği ölçülüp
+    ResizeObserver ile konteynerin GERÇEK genişliği sürekli izlenip
     `transform: scale()` ile orantılı küçültülür — hangi panelde
-    gösterilirse gösterilsin (dar sağ sütun, tam genişlik modal, vb.)
-    her zaman TAMAMEN sığar, yatay kaydırma gerekmez. PDF üretimi bu
+    gösterilirse gösterilsin (dar sağ sütun, tam genişlik modal, pencere
+    yeniden boyutlandırma, vb.) her zaman TAMAMEN sığar. PDF üretimi bu
     fonksiyonu ÇAĞIRMAZ, dolayısıyla hiç etkilenmez — html_to_pdf_bytes
     hâlâ orijinal (sarmalanmamış) HTML'i alır ve WeasyPrint @page
     kuralını olduğu gibi, tam A4 ölçeğinde uygular.
     """
     ekran_css = """
 <style>
-  html, body.__onizleme_disi { margin: 0; padding: 0; background: #e2e2e2; overflow-x: hidden; }
-  #__a4_sarici { width: 210mm; min-height: 10mm; margin: 0 auto;
-                transform-origin: top center; }
+  html, body { margin: 0; padding: 0; background: #e2e2e2; overflow-x: hidden; }
+  #__a4_sarici {
+    width: 210mm; min-height: 10mm; margin: 0 auto;
+    transform-origin: top center;
+    transform: scale(0.5);   /* JS çalışana kadar (veya hiç çalışmazsa)
+                                 GÜVENLİ VARSAYILAN — hiç sığmama riski
+                                 olmasın diye baştan makul bir küçültme */
+    height: 149mm;            /* 0.5 ölçekte ~297mm'nin tuttuğu alan */
+  }
   #__a4_sayfa {
     width: 210mm;
     min-height: 297mm;
@@ -72,18 +90,27 @@ def wrap_for_screen_preview(html: str) -> str:
     var sarici = document.getElementById('__a4_sarici');
     var sayfa = document.getElementById('__a4_sayfa');
     if (!sarici || !sayfa) return;
-    var mevcutGenislik = document.documentElement.clientWidth || window.innerWidth;
+    var mevcutGenislik = document.body.clientWidth
+                        || document.documentElement.clientWidth
+                        || window.innerWidth || 794;
     var dogalGenislik = sayfa.offsetWidth || 794;  // 210mm ~= 794px @96dpi
-    var olcek = Math.min(1, (mevcutGenislik - 4) / dogalGenislik);
+    var olcek = Math.max(0.15, Math.min(1, (mevcutGenislik - 4) / dogalGenislik));
     sarici.style.transform = 'scale(' + olcek + ')';
-    // Ölçeklenince boşta kalan dikey alanı telafi et (sarıcının
-    // "tuttuğu" alan, sayfanın gerçek yüksekliği x ölçek olmalı)
     sarici.style.height = (sayfa.offsetHeight * olcek) + 'px';
   }
+  // ResizeObserver: konteyner GERÇEKTEN nihai boyutuna ulaştığında
+  // tetiklenir — 'load' olayı gibi zamanlama varsayımına dayanmaz,
+  // Streamlit'in iframe/srcdoc yerleştirme biçiminde daha güvenilir.
+  if (window.ResizeObserver) {
+    var izleyici = new ResizeObserver(function() { olcekle(); });
+    izleyici.observe(document.body);
+  }
+  // Ek güvenlik ağı: ResizeObserver desteklenmese/gecikse bile
   window.addEventListener('load', olcekle);
   window.addEventListener('resize', olcekle);
-  setTimeout(olcekle, 50);   // fontlar geç yüklenirse ölçüm hatası olmasın
-  setTimeout(olcekle, 300);
+  [0, 50, 150, 300, 600, 1200].forEach(function(ms) {
+    setTimeout(olcekle, ms);
+  });
 })();
 </script>
 <div id="__a4_sarici"><div id="__a4_sayfa">"""
