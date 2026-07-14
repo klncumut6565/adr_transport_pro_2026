@@ -183,7 +183,7 @@ if sev["vehicle_id"] and _secili_vehicle is None:
     _secili_vehicle = d.get_vehicle(sev["vehicle_id"])
 
 
-sol, sag = st.columns([2.3, 1], gap="large")
+sol, sag = st.columns([1.7, 1], gap="large")
 
 # =========================================================================
 # SOL: Belge Bilgileri / Firma-Sürücü-Araç / Ürünler / Kayıt

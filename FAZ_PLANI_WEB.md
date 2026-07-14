@@ -946,3 +946,21 @@ hesaplanacak." mesajı gösteriliyor; ürün eklenince normal hesaplama
 Doğrulama: boş durumda ne yanıltıcı "gerekmez" mesajının ne de "0/1000"
 metninin göründüğü, yeni bilgi mesajının doğru çıktığı, ürün eklenince
 normal hesaplamanın bozulmadan devam ettiği test edildi. Suite: 280 test.
+
+
+## Düzeltme: sol menü daraltıldı, ADR Kontrol Merkezi paneli genişletildi
+Umut'un talebi: sol gezinme menüsü gereksiz yere geniş alan kaplıyordu,
+sağdaki ADR Kontrol Merkezi paneli (özellikle Canlı Evrak Önizleme) bu
+yüzden dar kalıyordu.
+
+İki değişiklik (`app.py` + `sayfalar/sevkiyat_editor.py`):
+1. Sol gezinme menüsü CSS ile daraltıldı (`[data-testid="stSidebar"]`,
+   varsayılan ~336px'ten 230px'e) — `app.py`'de global olarak enjekte
+   edildiği için TÜM sayfalarda geçerli, tek yerden yönetiliyor.
+2. Taşıma Evrakı'ndaki sol/sağ sütun oranı `[2.3, 1]` → `[1.7, 1]`
+   olarak değiştirildi; sağ panel (Kontrol Merkezi) artık daha geniş.
+
+Doğrulama: CSS'in gerçekten sayfada bulunduğu (data-testid seçicisi +
+min-width değeri) ve sütun oranının doğru güncellendiği test edildi;
+her iki sayfanın da (app.py giriş sonrası, sevkiyat_editor.py) hatasız
+render olmaya devam ettiği doğrulandı. Suite: 282 test.

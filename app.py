@@ -21,6 +21,22 @@ st.set_page_config(
     layout="wide",
 )
 
+# DÜZELTME (Umut'un talebi): sol gezinme menüsü (Streamlit'in kendi sayfa
+# navigasyonu) gereksiz yere geniş alan kaplıyordu, sağdaki ADR Kontrol
+# Merkezi paneli (özellikle Canlı Evrak Önizleme) bu yüzden dar kalıyordu.
+# Streamlit sidebar genişliğini doğrudan bir parametreyle ayarlamaya
+# izin vermiyor — tüm sayfalarda geçerli olacak şekilde CSS ile
+# daraltılıyor (varsayılan ~336px'ten ~230px'e). `!important` gerekli,
+# çünkü Streamlit'in kendi satır-içi stilleri aksi hâlde önceliklidir.
+st.markdown("""
+<style>
+[data-testid="stSidebar"] {
+    min-width: 230px !important;
+    max-width: 230px !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
 # DÜZELTME (Umut'un talebi): "Veritabanına şu an ulaşılamıyor..." uyarısı
 # PASİFE ALINDI — silinmedi, tek bayrakla geri açılabilir. ÖNEMLİ: bu
 # bayrak yalnızca GÖRÜNEN UYARI METNİNİ kontrol eder; hemen altındaki

@@ -706,3 +706,29 @@ class TestBosDurumdaYaniltciSonucGosterilmez:
         assert not t.exception
         metin = " | ".join(str(x.value) for x in (list(t.error) + list(t.success)))
         assert "Turuncu plaka" in metin, "ürün eklendikten sonra hesaplama kaybolmamalı"
+
+
+class TestPanelGenislikDuzenlemesi:
+    """Düzeltme (Umut'un talebi): sol gezinme menüsü gereksiz yere geniş
+    alan kaplıyordu, sağdaki ADR Kontrol Merkezi paneli (Canlı Evrak
+    Önizleme dahil) bu yüzden dar kalıyordu. Sol menü CSS ile daraltıldı,
+    sol/sağ sütun oranı sağa daha fazla alan verecek şekilde ayarlandı."""
+
+    def test_sidebar_daraltma_css_uygulaniyor(self):
+        if not PG_DSN:
+            pytest.skip("ADR_PG_TEST_DSN_APP tanımlı değil")
+        from streamlit.testing.v1 import AppTest
+        t = AppTest.from_file("app.py", default_timeout=30)
+        t.secrets["db"] = {"dsn": PG_DSN}
+        t.run()
+        assert not t.exception
+        # st.markdown ile enjekte edilen CSS'in gerçekten sayfada
+        # bulunduğunu doğrula (data-testid seçicisi + min/max-width)
+        tum_markdown = " ".join(str(m.value) for m in t.markdown)
+        assert 'data-testid="stSidebar"' in tum_markdown
+        assert "min-width: 230px" in tum_markdown
+
+    def test_kontrol_merkezi_paneli_genisletildi(self):
+        src = open("sayfalar/sevkiyat_editor.py", encoding="utf-8").read()
+        assert 'st.columns([1.7, 1], gap="large")' in src, \
+            "sütun oranı beklenen şekilde güncellenmemiş görünüyor"
