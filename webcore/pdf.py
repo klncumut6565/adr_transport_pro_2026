@@ -110,8 +110,24 @@ def wrap_for_screen_preview(html: str) -> str:
     // olası bir geri besleme döngüsünü daha en baştan imkansız kılar.
     if (sonOlcek !== null && Math.abs(olcek - sonOlcek) < 0.01) return;
     sonOlcek = olcek;
+    var yeniYukseklik = sayfa.offsetHeight * olcek;
     sarici.style.transform = 'scale(' + olcek + ')';
-    sarici.style.height = (sayfa.offsetHeight * olcek) + 'px';
+    sarici.style.height = yeniYukseklik + 'px';
+    // DÜZELTME (Umut'un tespiti — "satır yüksekliği orantılı büyütülüp
+    // küçültülmeli"): içerik küçülüyordu ama Streamlit'in components.html
+    // DIŞ ÇERÇEVESİ (iframe) sabit yükseklikte kalıyordu (Python tarafında
+    // height=850 gibi sabit bir değer), altında boş gri alan bırakıyordu.
+    // Streamlit'in TÜM components.html iframe'lerinde dinlediği standart
+    // "streamlit:setFrameHeight" postMessage protokolü kullanılarak DIŞ
+    // ÇERÇEVE de İÇERİĞE göre ORANTILI büyütülüp küçültülüyor — Python
+    // tarafındaki height parametresi artık yalnızca bir BAŞLANGIÇ değeri,
+    // gerçek yükseklik JS tarafından anında düzeltiliyor.
+    if (window.parent) {
+      window.parent.postMessage({
+        type: 'streamlit:setFrameHeight',
+        height: Math.ceil(yeniYukseklik) + 28  // küçük bir kenar payı
+      }, '*');
+    }
   }
   // KRİTİK: document.body'yi DEĞİL, yalnızca 'window' boyut değişikliğini
   // izliyoruz. body'yi izlemek, olcekle()'nin KENDİ height ayarının

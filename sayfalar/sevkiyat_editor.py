@@ -497,8 +497,14 @@ with sag:
                 status_text=sev["status"], notes=sev["notes"] or "")
             with st.expander("Önizlemeyi göster/gizle", expanded=False):
                 from webcore.pdf import wrap_for_screen_preview
+                # DÜZELTME: JS artık dış çerçeveyi (iframe) gerçek içerik
+                # yüksekliğine göre otomatik ayarlıyor (postMessage ile,
+                # bkz. webcore/pdf.py). height=400 yalnızca JS çalışana
+                # kadarki BAŞLANGIÇ değeri — sabit 850'lik boş alan artık
+                # kalmıyor. scrolling=False: yükseklik zaten içeriğe göre
+                # ayarlandığı için kaydırmaya gerek yok.
                 components.html(wrap_for_screen_preview(_onizleme_html),
-                               height=850, scrolling=True)
+                               height=400, scrolling=False)
 
             if st.button("📄 PDF oluştur ve indir", use_container_width=True):
                 try:

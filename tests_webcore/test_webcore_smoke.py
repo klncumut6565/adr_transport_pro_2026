@@ -1136,3 +1136,44 @@ class TestKarisikYuklemeAdr2025Dogrulama:
         assert plaka_gerekli is True
         oran = min(puan / 1000, 1.0)
         assert oran == 1.0, "ilerleme çubuğu oranı %100'ü aşmamalı (tavanlanmalı)"
+
+
+class TestOnizlemeJSGercektenGecerli:
+    """Düzeltme (kendi hatam — iki kez art arda yakalandı): önizleme
+    JS'ini elle düzenlerken yorum satırlarında yanlışlıkla Python yorum
+    işareti (#) kullanmışım — bu geçerli JavaScript değil, tarayıcıda
+    sessizce sözdizimi hatasına yol açardı (script hiç çalışmaz, ama
+    hata konsola gitmeden fark edilmeyebilirdi). Node.js ile GERÇEKTEN
+    derlenebilir olduğu artık her test çalıştırmasında doğrulanıyor —
+    bir daha kaçmaz."""
+
+    def test_js_node_ile_derlenebiliyor(self):
+        import shutil, subprocess, re, tempfile, os
+        if not shutil.which("node"):
+            pytest.skip("node kurulu değil, JS sözdizimi doğrulanamıyor")
+        from webcore.pdf import wrap_for_screen_preview
+        html = wrap_for_screen_preview("<html><head></head><body>x</body></html>")
+        m = re.search(r"<script>(.*?)</script>", html, re.S)
+        assert m, "script bloğu bulunamadı"
+        js_kodu = m.group(1)
+        assert not re.search(r"^\s*#", js_kodu, re.M), \
+            "JS bloğunda geçersiz Python-tarzı yorum işareti (#) bulundu"
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".js", delete=False,
+                                         encoding="utf-8") as f:
+            f.write(js_kodu)
+            yol = f.name
+        try:
+            sonuc = subprocess.run(["node", "--check", yol],
+                                   capture_output=True, text=True, timeout=10)
+            assert sonuc.returncode == 0, f"JS sözdizimi hatalı:\n{sonuc.stderr}"
+        finally:
+            os.unlink(yol)
+
+    def test_dis_cerceve_otomatik_yukseklik_bildirimi_var(self):
+        """Umut'un tespiti: dış çerçeve (iframe) sabit yükseklikte
+        kalıp boş alan bırakıyordu. Artık Streamlit'in standart
+        postMessage protokolüyle gerçek yüksekliğe göre ayarlanıyor."""
+        from webcore.pdf import wrap_for_screen_preview
+        sonuc = wrap_for_screen_preview("<body>x</body>")
+        assert "streamlit:setFrameHeight" in sonuc
+        assert "postMessage" in sonuc

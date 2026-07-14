@@ -1003,3 +1003,30 @@ doğrulandı.
 Doğrulama: sol hizalama, ResizeObserver'ın gerçekten kaldırıldığı,
 window resize'ın kullanıldığı, tekrar-hesaplama önlemenin varlığı ayrı
 ayrı test edildi. Suite: 284 test.
+
+
+## Düzeltme (4. tur): dış çerçeve sabit yükseklikte kalıyordu
+Umut'un tespiti: içerik doğru ölçekleniyordu ama panelin DIŞ ÇERÇEVESİ
+(components.html'in iframe'i) sabit height=850 kaldığı için altında
+büyük bir boş gri alan kalıyordu — "satır yüksekliği de orantılı
+büyütülüp küçültülmeli" talebi.
+
+Düzeltme: Streamlit'in TÜM components.html iframe'lerinde dinlediği
+standart `streamlit:setFrameHeight` postMessage protokolü kullanılarak
+dış çerçeve de JS tarafından GERÇEK içerik yüksekliğine göre anında
+ayarlanıyor. Python tarafındaki `height=` parametresi artık yalnızca
+JS çalışana kadarki başlangıç değeri (850 → 400'e indirildi,
+`scrolling=False` — kaydırmaya gerek kalmadı, yükseklik zaten doğru).
+
+**Süreç notu:** bu düzeltmeyi yazarken AYNI hatayı (JS yorumlarında
+yanlışlıkla Python # işareti kullanma) İKİNCİ KEZ yaptım — ilk seferinde
+1 satırda, düzeltirken gözden kaçan 3 satır daha vardı. Node.js ile
+(`node --check`) sistematik taradım, hepsini buldum ve düzelttim. Bunun
+bir daha sessizce kaçmaması için KALICI bir test eklendi
+(TestOnizlemeJSGercektenGecerli) — her `pytest` çalıştırmasında üretilen
+JS gerçekten Node ile derleniyor, Python-tarzı yorum kalıntısı ayrıca
+regex ile de aranıyor.
+
+Doğrulama: JS'in Node ile gerçekten derlendiği, dış çerçeve otomatik
+yükseklik bildiriminin (postMessage) var olduğu test edildi. Suite:
+286 test.
