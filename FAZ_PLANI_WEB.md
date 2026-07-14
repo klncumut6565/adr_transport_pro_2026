@@ -787,3 +787,35 @@ eksik) artık başarılı, bu asıl hatanın birebir kanıtıydı. Ayrıca AST
 taramasıyla webcore/ genelinde başka gizli eksik bağımlılık kalmadığı
 doğrulandı (Pillow, qrcode, weasyprint, psycopg, rapidfuzz, openpyxl,
 streamlit — hepsi requirements.txt'te). Suite: 251 test.
+
+
+## Üç düzeltme: ikinci ürün eklerken donma + PDF önizleme sığmama + karışık yükleme sorgusu
+Umut'un üç ayrı geri bildirimi:
+
+**1) KRİTİK — ikinci ürün eklerken donma:** `streamlit-searchbox`
+(üçüncü parti bileşen) sabit bir `key="urun_arama_kutusu"` kullanıyordu.
+Her ürün eklendikten sonra çağrılan `st.rerun()`, bileşenin kendi JS↔
+Python durumunu TAŞIYARAK yeniden render etmesine yol açıyordu — bu,
+bileşenin senkronizasyonunu kaybedip donmasına neden oluyordu (bilinen
+bir custom-component deseni: dışarıdan tetiklenen rerun + sabit key).
+Düzeltme: anahtar artık `f"urun_arama_kutusu_{len(kalemler)}"` — kalem
+sayısı değiştikçe (her eklemeden sonra) bileşen SIFIRDAN, temiz durumla
+başlıyor, önceki durum hiç taşınmıyor.
+
+**2) PDF önizlemesi tam sığmıyordu:** `wrap_for_screen_preview` sabit
+`width: 210mm` (~794px) kullanıyordu — ADR Kontrol Merkezi'nin DAR sağ
+sütununda (toplam genişliğin ~%30'u) bu, yatay taşma/kırpılmaya yol
+açıyordu. Düzeltme: sayfa A4 oranlarında sabit inşa edilir ama JS ile
+iframe'in GERÇEK genişliği ölçülüp `transform: scale()` ile orantılı
+küçültülüyor — hangi panelde gösterilirse gösterilsin tam sığıyor.
+
+**3) Karışık yükleme canlı sonuçları:** zaten vardı ve doğru çalışıyordu
+— `ADREngine.check_compatibility(items)` her render'da çağrılıyor,
+sonuçlar "Uyarı ve Hatalar" bölümünde "Uyumsuzluk: ..." olarak
+gösteriliyor. Gerçek bir uyumsuz ikili (Asitler+Bazlar) ile test edilip
+doğru tespit ettiği kanıtlandı.
+
+Doğrulama: 2 ürünlü durumun hatasız render olduğu, arama kutusu
+anahtarının dinamik olduğu, sarmalayıcının içerik/JS/PDF-izolasyonunu
+koruduğu, karışık yükleme kontrolünün gerçek bir uyumsuzluğu yakaladığı
+test edildi. Suite: 254 test.

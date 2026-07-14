@@ -30,33 +30,73 @@ def html_to_pdf_bytes(html: str, base_url: str | None = None) -> bytes:
 def wrap_for_screen_preview(html: str) -> str:
     """A4 evrak şablonunu TARAYICIDA gerçek çıktıya benzer gösterir.
 
-    Sorun: şablonun `@page {{ size: A4; margin: 8mm 10mm; }}` kuralı
+    Sorun 1: şablonun `@page {{ size: A4; margin: 8mm 10mm; }}` kuralı
     yalnızca yazdırma/PDF motorlarında (WeasyPrint dahil) uygulanır —
     tarayıcılar bunu EKRANDA tamamen yok sayar. Bu yüzden aynı HTML,
     Canlı Önizleme'de (components.html, normal ekran render'ı) sayfa
     genişliği/kenar boşluğu olmadan dağınık akıyor, PDF'te ise düzgün
     A4 çıkıyor — "önizleme çıktıya hiç benzemiyor" şikâyetinin sebebi.
 
-    Çözüm: yalnızca ÖNİZLEME kopyasına, @page'in ekranda YAPAMADIĞI şeyi
-    (sayfa genişliği + kenar boşluğu + "kağıt" görünümü) taklit eden bir
-    <style> enjekte edilir. PDF üretimi bu fonksiyonu ÇAĞIRMAZ, dolayısıyla
-    hiç etkilenmez — html_to_pdf_bytes hâlâ orijinal (sarmalanmamış) HTML'i
-    alır ve WeasyPrint @page kuralını olduğu gibi uygular.
+    Sorun 2 (Umut'un tespiti — "tam sığmadı"): sabit `width: 210mm`
+    (~794px), ADR Kontrol Merkezi panelinin DAR sağ sütununda (toplam
+    genişliğin ~%30'u) yatay taşmaya/kırpılmaya yol açıyordu — panel her
+    zaman 794px genişliğinde olmadığı için sabit boyut yanlış varsayımdı.
+
+    Çözüm: sayfa A4 oranlarında (210mm) SABİT genişlikte inşa edilir,
+    ama JS ile iframe'in GERÇEK kullanılabilir genişliği ölçülüp
+    `transform: scale()` ile orantılı küçültülür — hangi panelde
+    gösterilirse gösterilsin (dar sağ sütun, tam genişlik modal, vb.)
+    her zaman TAMAMEN sığar, yatay kaydırma gerekmez. PDF üretimi bu
+    fonksiyonu ÇAĞIRMAZ, dolayısıyla hiç etkilenmez — html_to_pdf_bytes
+    hâlâ orijinal (sarmalanmamış) HTML'i alır ve WeasyPrint @page
+    kuralını olduğu gibi, tam A4 ölçeğinde uygular.
     """
     ekran_css = """
 <style>
-  html { background: #e2e2e2; }
-  body {
+  html, body.__onizleme_disi { margin: 0; padding: 0; background: #e2e2e2; overflow-x: hidden; }
+  #__a4_sarici { width: 210mm; min-height: 10mm; margin: 0 auto;
+                transform-origin: top center; }
+  #__a4_sayfa {
     width: 210mm;
     min-height: 297mm;
-    margin: 12px auto !important;
-    padding: 8mm 10mm !important;
+    margin: 12px auto;
+    padding: 8mm 10mm;
     box-shadow: 0 1px 8px rgba(0,0,0,.28);
+    background: #ffffff;
+    box-sizing: border-box;
   }
-</style>"""
-    if "</head>" in html:
-        return html.replace("</head>", ekran_css + "\n</head>", 1)
-    return ekran_css + html
+</style>
+<script>
+(function() {
+  function olcekle() {
+    var sarici = document.getElementById('__a4_sarici');
+    var sayfa = document.getElementById('__a4_sayfa');
+    if (!sarici || !sayfa) return;
+    var mevcutGenislik = document.documentElement.clientWidth || window.innerWidth;
+    var dogalGenislik = sayfa.offsetWidth || 794;  // 210mm ~= 794px @96dpi
+    var olcek = Math.min(1, (mevcutGenislik - 4) / dogalGenislik);
+    sarici.style.transform = 'scale(' + olcek + ')';
+    // Ölçeklenince boşta kalan dikey alanı telafi et (sarıcının
+    // "tuttuğu" alan, sayfanın gerçek yüksekliği x ölçek olmalı)
+    sarici.style.height = (sayfa.offsetHeight * olcek) + 'px';
+  }
+  window.addEventListener('load', olcekle);
+  window.addEventListener('resize', olcekle);
+  setTimeout(olcekle, 50);   // fontlar geç yüklenirse ölçüm hatası olmasın
+  setTimeout(olcekle, 300);
+})();
+</script>
+<div id="__a4_sarici"><div id="__a4_sayfa">"""
+    kapanis = "</div></div>"
+    if "<body" in html:
+        # <body ...> etiketinin AÇILIŞINDAN SONRAKİ ilk noktaya sarıcıyı ekle,
+        # gövde içeriğinin SONUNA (</body>'den önce) kapanışı ekle
+        i = html.index(">", html.index("<body")) + 1
+        html = html[:i] + ekran_css + html[i:]
+        j = html.rindex("</body>")
+        html = html[:j] + kapanis + html[j:]
+        return html
+    return ekran_css + html + kapanis
 
 
 def build_letterhead_watermark_b64(logo_b64: str, is_approved: bool,

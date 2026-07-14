@@ -499,31 +499,44 @@ class TestSetLocalKiraciBaglami:
 
 
 class TestEkranOnizlemeSarmalayici:
-    """Düzeltme: @page kuralı yalnızca yazdırma/PDF motorlarında uygulanır,
-    tarayıcı ekranda tamamen yok sayar — bu yüzden Canlı Önizleme, gerçek
-    PDF çıktısına hiç benzemiyordu. wrap_for_screen_preview() yalnızca
-    önizleme kopyasına A4 taklidi CSS'i ekler; PDF üretimi orijinal
-    (sarmalanmamış) HTML'i kullanmaya devam eder, etkilenmez."""
+    """Düzeltme (2. tur, Umut'un 'tam sığmadı' tespiti): @page kuralı
+    yalnızca yazdırma/PDF motorlarında uygulanır, tarayıcı ekranda
+    tamamen yok sayar — bu yüzden Canlı Önizleme gerçek PDF çıktısına hiç
+    benzemiyordu. İlk düzeltme (sabit width:210mm) bu seferki şikayeti
+    çözemedi — dar sağ panelde yatay taşma/kırpılma oluyordu. Artık JS
+    ile gerçek konteyner genişliği ölçülüp sayfa orantılı ölçekleniyor
+    (transform: scale), hangi panelde gösterilirse gösterilsin tam sığar.
+    PDF üretimi hâlâ orijinal (sarmalanmamış) HTML'i kullanır, etkilenmez."""
 
     def test_sarmalama_pdf_yolunu_bozmuyor(self):
         pytest.importorskip("weasyprint")
         from webcore.pdf import html_to_pdf_bytes, wrap_for_screen_preview
 
-        orijinal = "<html><head><style>@page{size:A4;}</style></head><body>X</body></html>"
+        orijinal = ("<html><head><style>@page{size:A4;}</style></head>"
+                   "<body>X-ICERIK-947</body></html>")
         sarili = wrap_for_screen_preview(orijinal)
 
-        assert "width: 210mm" in sarili
         assert "@page{size:A4;}" in sarili  # orijinal kural dokunulmadan kaldı
-        assert sarili.split("<body")[1] == orijinal.split("<body")[1]  # gövde aynı
+        assert "X-ICERIK-947" in sarili      # gövde içeriği korunuyor
+        assert "__a4_sarici" in sarili       # ölçeklenen sarıcı eklendi
+        assert "transform" in sarili and "olcekle" in sarili  # JS ölçekleme var
 
-        # PDF her zaman orijinali kullanmalı — sarmalı hâli değil
+        # Orijinal HTML'in KENDİSİ hiç değişmedi (fonksiyon yeni bir
+        # string döndürür, orijinali mutasyona uğratmaz) — PDF yolunun
+        # etkilenmediğinin doğrudan kanıtı.
+        assert "__a4_sarici" not in orijinal
         pdf_orijinal = html_to_pdf_bytes(orijinal)
         assert pdf_orijinal[:5] == b"%PDF-"
 
     def test_head_yoksa_bile_calisir(self):
         from webcore.pdf import wrap_for_screen_preview
-        sonuc = wrap_for_screen_preview("<body>gövde</body>")
-        assert "width: 210mm" in sonuc and "gövde" in sonuc
+        sonuc = wrap_for_screen_preview("<body>gövde-icerik</body>")
+        assert "__a4_sarici" in sonuc and "gövde-icerik" in sonuc
+
+    def test_body_etiketi_hic_yoksa_da_calisir(self):
+        from webcore.pdf import wrap_for_screen_preview
+        sonuc = wrap_for_screen_preview("<div>saf gövdesiz içerik</div>")
+        assert "saf gövdesiz içerik" in sonuc
 
 
 class TestEsZamanliOturumIzolasyonu:

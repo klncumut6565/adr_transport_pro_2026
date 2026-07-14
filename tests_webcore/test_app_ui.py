@@ -617,3 +617,46 @@ class TestDBUlasilamadiUyarisiPasif:
         assert app.DB_ULASILAMADI_UYARISI_GOSTER is False
         # bayrağın varlığı, geri açmanın tek satırlık bir değişiklik
         # olduğunun (kod silinmediğinin) kanıtıdır.
+
+
+class TestIkinciUrunEklemeDonmasi:
+    """KRİTİK düzeltme: Ürün Ekle arama kutusu (streamlit-searchbox,
+    üçüncü parti bileşen) sabit bir key kullanıyordu. Her ürün ekleme
+    sonrası st.rerun() çağrısı, bileşenin JS↔Python durumunu TAŞIYARAK
+    yeniden render etmesine yol açıyordu — bu, ikinci üründe donmaya
+    neden oluyordu. Anahtar artık kalem sayısına göre dinamik
+    (f'urun_arama_kutusu_{len(kalemler)}'), her ekleme sonrası bileşen
+    SIFIRDAN başlıyor."""
+
+    def test_2_urunlu_durum_hatasiz_render_olur(self):
+        if not PG_DSN:
+            pytest.skip("ADR_PG_TEST_DSN_APP tanımlı değil")
+        from streamlit.testing.v1 import AppTest
+        t = AppTest.from_file("sayfalar/sevkiyat_editor.py", default_timeout=40)
+        t.secrets["db"] = {"dsn": PG_DSN}
+        t.session_state["user"] = {"username": "umut", "tenant_id": 1,
+                                   "role": "admin", "full_name": "U"}
+        t.run()
+        t.session_state["editor_kalemler"] = [
+            dict(id=None, shipment_id=None, chemical_id=1, un_number="1203",
+                proper_name="BENZİN", class_code="3", packing_group="II",
+                packaging_type="Varil", packaging_count=4, net_quantity=200.0,
+                gross_quantity=200.0, unit="lt", is_lq=False, is_eq=False,
+                lq_max_per_package=0.0, eq_max_per_package=0.0, notes="",
+                tunnel_code="D/E", segregation_group="", classification_code="F1",
+                transport_category="2", special_provisions=""),
+            dict(id=None, shipment_id=None, chemical_id=2, un_number="1993",
+                proper_name="ALEVLENEBİLİR SIVI", class_code="3", packing_group="III",
+                packaging_type="Bidon", packaging_count=10, net_quantity=100.0,
+                gross_quantity=100.0, unit="lt", is_lq=False, is_eq=False,
+                lq_max_per_package=0.0, eq_max_per_package=0.0, notes="",
+                tunnel_code="D/E", segregation_group="", classification_code="F1",
+                transport_category="3", special_provisions=""),
+        ]
+        t.run()
+        assert not t.exception, [str(e.value) for e in t.exception]
+
+    def test_arama_kutusu_anahtari_kalem_sayisina_gore_dinamik(self):
+        src = open("sayfalar/sevkiyat_editor.py", encoding="utf-8").read()
+        assert 'key=f"urun_arama_kutusu_{len(kalemler)}"' in src, \
+            "arama kutusu anahtarı sabitlenmiş görünüyor, donma riski geri gelebilir"

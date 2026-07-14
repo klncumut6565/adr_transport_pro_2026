@@ -270,9 +270,18 @@ with sol:
             return [(kimyasal_etiket(k), k)
                    for k in db().search_chemicals(terim, limit=20)]
 
+        # DÜZELTME (KRİTİK — "ikinci ürün eklerken donuyor"): streamlit-
+        # searchbox üçüncü parti bir bileşendir, kendi JS↔Python
+        # durumunu bir "key" altında saklar. Sabit bir key ile her ürün
+        # eklendikten sonra st.rerun() çağırmak, bileşenin iç durumunu
+        # (önceki seçim, arama geçmişi) TAŞIYARAK yeniden render etmesine
+        # yol açıyordu — bu, bileşenin JS tarafının senkronizasyonunu
+        # kaybedip donmasına neden oluyordu. Anahtarı kalem sayısına göre
+        # DİNAMİK yapmak, her eklemeden sonra bileşeni SIFIRDAN (temiz
+        # durumla) başlatır — önceki seçim/durum hiç taşınmaz.
         secili = st_searchbox(
             _kimyasal_ara,
-            key="urun_arama_kutusu",
+            key=f"urun_arama_kutusu_{len(kalemler)}",
             placeholder="UN numarası veya madde adı yazın (ör. 1993 veya benzin)...",
             clear_on_submit=True,
             default=None,
