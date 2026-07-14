@@ -44,21 +44,31 @@ def wrap_for_screen_preview(html: str) -> str:
     Sorun 3 (Umut'un 2. tespiti): ilk düzeltme JS'i `window.addEventListener
     ('load', ...)` + birkaç setTimeout ile tetikliyordu — bu, Streamlit'in
     components.html'inin içeriği bir iframe'e `srcdoc` ile yazma biçimiyle
-    ZAMANLAMA AÇISINDAN güvenilir çalışmadı (kullanıcı yalnızca tarayıcıyı
-    %33'e küçültünce içeriğin sığdığını bildirdi — JS hiç doğru çalışmamış
-    demekti). Çözüm: `load` olayına güvenmek yerine `ResizeObserver`
-    kullanılıyor — bu API tarayıcının KENDİSİ tarafından, konteynerin
-    GERÇEKTEN nihai boyutuna ulaştığı anda tetiklenir, zamanlama
-    varsayımına dayanmaz. Ayrıca JS hiç çalışmasa bile (eski tarayıcı,
-    script hatası) makul bir GÜVENLİ VARSAYILAN ölçek (0.5) satır-içi
-    CSS ile baştan uygulanıyor — "JS çalışmazsa hiç sığmama" riski ortadan
-    kalkıyor.
+    ZAMANLAMA AÇISINDAN güvenilir çalışmadı. `ResizeObserver` ile
+    değiştirildi.
 
-    Çözüm: sayfa A4 oranlarında (210mm) SABİT genişlikte inşa edilir,
-    ResizeObserver ile konteynerin GERÇEK genişliği sürekli izlenip
-    `transform: scale()` ile orantılı küçültülür — hangi panelde
-    gösterilirse gösterilsin (dar sağ sütun, tam genişlik modal, pencere
-    yeniden boyutlandırma, vb.) her zaman TAMAMEN sığar. PDF üretimi bu
+    Sorun 4 (Umut'un 3. tespiti): `ResizeObserver`, `document.body`'yi
+    izliyordu — AMA `olcekle()` fonksiyonunun KENDİSİ `sarici.style.
+    height`'i DEĞİŞTİRİYORDU, bu da body'nin yüksekliğini değiştirip
+    ResizeObserver'ı TEKRAR tetikliyordu (kendi kendini besleyen bir
+    döngü). Küçük bir yuvarlama sapması bile bu döngüde birikip
+    yüksekliğin sürekli büyümesine yol açabiliyordu — "yükseklik alanı
+    çok büyük oldu, önizleme görünmüyor" şikâyetinin sebebi buydu.
+    Ayrıca `margin: 0 auto` (ortalama) panel genişledikçe içeriğin sağa
+    kayıyormuş HİSSİ veriyordu; artık sol kenara sabitleniyor (`margin: 0`).
+
+    Çözüm: ResizeObserver artık `document.body` yerine `window` boyut
+    değişikliğini (`resize` olayı) izliyor — bu, İÇERİĞİN KENDİ
+    değişikliklerinden ASLA tetiklenmez, yalnızca panelin/pencerenin
+    GERÇEKTEN yeniden boyutlandığı durumlarda tetiklenir; kendi kendini
+    besleyen döngü riski yapısal olarak ortadan kalktı. Ayrıca yalnızca
+    ölçek GERÇEKTEN değiştiğinde DOM'a yazılıyor (gereksiz tekrar yok).
+
+    Çözüm (genel): sayfa A4 oranlarında (210mm) SABİT genişlikte inşa
+    edilir, `transform: scale()` ile orantılı küçültülüp SOL kenara
+    sabitlenir — hangi panelde gösterilirse gösterilsin (dar sağ sütun,
+    tam genişlik modal, pencere yeniden boyutlandırma, vb.) her zaman
+    TAMAMEN sığar ve öngörülebilir konumda kalır. PDF üretimi bu
     fonksiyonu ÇAĞIRMAZ, dolayısıyla hiç etkilenmez — html_to_pdf_bytes
     hâlâ orijinal (sarmalanmamış) HTML'i alır ve WeasyPrint @page
     kuralını olduğu gibi, tam A4 ölçeğinde uygular.
@@ -67,8 +77,8 @@ def wrap_for_screen_preview(html: str) -> str:
 <style>
   html, body { margin: 0; padding: 0; background: #e2e2e2; overflow-x: hidden; }
   #__a4_sarici {
-    width: 210mm; min-height: 10mm; margin: 0 auto;
-    transform-origin: top center;
+    width: 210mm; min-height: 10mm; margin: 0;
+    transform-origin: top left;
     transform: scale(0.5);   /* JS çalışana kadar (veya hiç çalışmazsa)
                                  GÜVENLİ VARSAYILAN — hiç sığmama riski
                                  olmasın diye baştan makul bir küçültme */
@@ -77,7 +87,7 @@ def wrap_for_screen_preview(html: str) -> str:
   #__a4_sayfa {
     width: 210mm;
     min-height: 297mm;
-    margin: 12px auto;
+    margin: 12px 0;
     padding: 8mm 10mm;
     box-shadow: 0 1px 8px rgba(0,0,0,.28);
     background: #ffffff;
@@ -86,6 +96,7 @@ def wrap_for_screen_preview(html: str) -> str:
 </style>
 <script>
 (function() {
+  var sonOlcek = null;
   function olcekle() {
     var sarici = document.getElementById('__a4_sarici');
     var sayfa = document.getElementById('__a4_sayfa');
@@ -95,17 +106,19 @@ def wrap_for_screen_preview(html: str) -> str:
                         || window.innerWidth || 794;
     var dogalGenislik = sayfa.offsetWidth || 794;  // 210mm ~= 794px @96dpi
     var olcek = Math.max(0.15, Math.min(1, (mevcutGenislik - 4) / dogalGenislik));
+    // DÜZELTME: ölçek gerçekten değişmediyse DOM'a hiç dokunma — bu,
+    // olası bir geri besleme döngüsünü daha en baştan imkansız kılar.
+    if (sonOlcek !== null && Math.abs(olcek - sonOlcek) < 0.01) return;
+    sonOlcek = olcek;
     sarici.style.transform = 'scale(' + olcek + ')';
     sarici.style.height = (sayfa.offsetHeight * olcek) + 'px';
   }
-  // ResizeObserver: konteyner GERÇEKTEN nihai boyutuna ulaştığında
-  // tetiklenir — 'load' olayı gibi zamanlama varsayımına dayanmaz,
-  // Streamlit'in iframe/srcdoc yerleştirme biçiminde daha güvenilir.
-  if (window.ResizeObserver) {
-    var izleyici = new ResizeObserver(function() { olcekle(); });
-    izleyici.observe(document.body);
-  }
-  // Ek güvenlik ağı: ResizeObserver desteklenmese/gecikse bile
+  // KRİTİK: document.body'yi DEĞİL, yalnızca 'window' boyut değişikliğini
+  // izliyoruz. body'yi izlemek, olcekle()'nin KENDİ height ayarının
+  // body'yi değiştirip gözlemciyi TEKRAR tetiklemesine (kendi kendini
+  // besleyen döngü) yol açıyordu — "yükseklik çok büyüdü" hatasının
+  // asıl sebebi buydu. window resize, İÇERİK değişikliklerinden ASLA
+  // tetiklenmez, yalnızca panel/pencere GERÇEKTEN yeniden boyutlanınca.
   window.addEventListener('load', olcekle);
   window.addEventListener('resize', olcekle);
   [0, 50, 150, 300, 600, 1200].forEach(function(ms) {

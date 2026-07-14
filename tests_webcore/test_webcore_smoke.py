@@ -990,11 +990,17 @@ class TestGercekKarisikYuklemeMotoru:
 class TestOnizlemeGuvenliVarsayilanOlcek:
     """Düzeltme (Umut'un 2. tespiti — 'tam sığmadı, sadece %33 zoom'da
     sığıyor'): ilk düzeltmenin JS'i (load/resize + birkaç setTimeout)
-    Streamlit'in components.html/srcdoc ortamında güvenilir çalışmadı —
-    JS hiç tetiklenmemiş gibi davrandı. İki katmanlı çözüm: (1) JS
-    çalışmasa/gecikse BİLE geçerli olan satır-içi CSS varsayılan ölçek
-    (0.5), (2) 'load' yerine ResizeObserver (zamanlama varsayımına
-    dayanmaz, konteynerin GERÇEK nihai boyutuna ulaştığı anda tetiklenir)."""
+    Streamlit'in components.html/srcdoc ortamında güvenilir çalışmadı.
+
+    Düzeltme (Umut'un 3. tespiti — 'yükseklik alanı çok büyük oldu,
+    önizleme görünmüyor' + 'panel genişledikçe önizleme sağa kayıyor'):
+    ResizeObserver'ın document.body'yi izlemesi, olcekle()'nin KENDİ
+    height ayarının body'yi değiştirip gözlemciyi TEKRAR tetiklemesine
+    (kendi kendini besleyen döngü) yol açıyordu. ResizeObserver
+    kaldırıldı, yerine yalnızca 'window' resize olayı (içerik
+    değişikliklerinden ASLA tetiklenmez) + ölçek gerçekten değişmediyse
+    DOM'a dokunmayan bir tekrar-hesaplama önleme (sonOlcek) kondu.
+    Ayrıca `margin: 0 auto` (ortalama) → `margin: 0` (sol hizalı)."""
 
     def test_guvenli_varsayilan_olcek_hep_uygulanir(self):
         from webcore.pdf import wrap_for_screen_preview
@@ -1003,13 +1009,31 @@ class TestOnizlemeGuvenliVarsayilanOlcek:
         # CSS zaten devrede olmalı — "hiç sığmama" riski böylece yok.
         assert "scale(0.5)" in sonuc
 
-    def test_resize_observer_kullaniliyor_load_olayina_tek_basina_guvenilmiyor(self):
+    def test_document_body_resize_observer_kaldirildi(self):
+        """KRİTİK: document.body'yi izleyen bir ResizeObserver bir daha
+        sessizce geri gelmesin — bu, tespit edilen geri besleme
+        döngüsünün doğrudan kaynağıydı."""
         from webcore.pdf import wrap_for_screen_preview
         sonuc = wrap_for_screen_preview("<body>x</body>")
-        assert "ResizeObserver" in sonuc
-        # 'load' hâlâ ek güvenlik ağı olarak dursun (kaldırılmadı) ama
-        # TEK dayanak noktası olmaktan çıktı
+        assert "ResizeObserver" not in sonuc
+        assert "addEventListener('resize'" in sonuc
         assert "addEventListener('load'" in sonuc
+
+    def test_tekrar_hesaplama_onleme_var(self):
+        """Ölçek gerçekten değişmediyse DOM'a dokunulmamalı — olası
+        her türlü geri besleme döngüsüne karşı ek güvence."""
+        from webcore.pdf import wrap_for_screen_preview
+        sonuc = wrap_for_screen_preview("<body>x</body>")
+        assert "sonOlcek" in sonuc
+
+    def test_sol_hizali_ortalama_degil(self):
+        """Umut'un tespiti: panel genişledikçe önizleme sağa kayıyormuş
+        gibi görünüyordu — `margin: 0 auto` (ortalama) yerine sol kenara
+        sabitlendi (`margin: 0`)."""
+        from webcore.pdf import wrap_for_screen_preview
+        sonuc = wrap_for_screen_preview("<body>x</body>")
+        assert "margin: 0 auto" not in sonuc
+        assert "transform-origin: top left" in sonuc
 
     def test_birden_fazla_zamanlama_denemesi_var(self):
         from webcore.pdf import wrap_for_screen_preview

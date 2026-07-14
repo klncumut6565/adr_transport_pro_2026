@@ -964,3 +964,42 @@ Doğrulama: CSS'in gerçekten sayfada bulunduğu (data-testid seçicisi +
 min-width değeri) ve sütun oranının doğru güncellendiği test edildi;
 her iki sayfanın da (app.py giriş sonrası, sevkiyat_editor.py) hatasız
 render olmaya devam ettiği doğrulandı. Suite: 282 test.
+
+
+## Düzeltme (3. tur): önizleme yüksekliği aşırı büyüdü + sağa kayma
+Umut'un iki gözlemi: (1) önizlemenin yükseklik alanı çok büyümüş,
+içerik görünmüyordu, (2) panel genişledikçe önizleme sağa doğru
+kayıyormuş gibi görünüyordu.
+
+**Kök sebep 1 (yükseklik):** Önceki turda eklenen `ResizeObserver`,
+`document.body`'yi izliyordu — AMA `olcekle()` fonksiyonunun kendisi
+`sarici.style.height`'i değiştiriyordu, bu da body'nin doğal
+yüksekliğini etkileyip ResizeObserver'ı TEKRAR tetikliyordu: kendi
+kendini besleyen bir döngü. Küçük bir yuvarlama sapması bile bu
+döngüde birikip yüksekliğin sürekli büyümesine yol açabiliyordu.
+
+**Kök sebep 2 (sağa kayma):** `#__a4_sarici` `margin: 0 auto` ile
+ORTALANIYORDU — panel genişledikçe sabit-genişlikli (ölçeklenmiş)
+içerik, ortalama nedeniyle konteynerin ortasına doğru "kayıyormuş" gibi
+görünüyordu.
+
+**Düzeltme:**
+1. ResizeObserver TAMAMEN kaldırıldı — yerine yalnızca `window` resize
+   olayı kullanılıyor. Bu, İÇERİK değişikliklerinden (kendi height
+   ayarımızdan) ASLA tetiklenmez, yalnızca panel/pencere GERÇEKTEN
+   yeniden boyutlanınca — geri besleme döngüsü yapısal olarak imkansız.
+2. Tekrar-hesaplama önleme: ölçek gerçekten değişmediyse (>%1 fark
+   yoksa) DOM'a hiç dokunulmuyor — ek güvenlik katmanı.
+3. `margin: 0 auto` → `margin: 0`, `transform-origin: top center` →
+   `top left` — içerik artık panel genişliğinden bağımsız olarak SOL
+   kenara sabit, öngörülebilir konumda.
+
+Ayrıca bu turda bir kendi hatamı da düzelttim: ilk yazdığım JS
+yorumlarının birkaçında yanlışlıkla Python yorum işareti (#) kullanmışım
+— bu geçerli JavaScript değil, tarayıcıda sözdizimi hatasına yol açardı.
+Node.js ile (`node --check`) JS'in gerçekten derlenebilir olduğu
+doğrulandı.
+
+Doğrulama: sol hizalama, ResizeObserver'ın gerçekten kaldırıldığı,
+window resize'ın kullanıldığı, tekrar-hesaplama önlemenin varlığı ayrı
+ayrı test edildi. Suite: 284 test.
