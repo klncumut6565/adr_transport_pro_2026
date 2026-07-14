@@ -15,13 +15,33 @@ def at():
     return t
 
 
+def _giris_ekrani_aktif_mi() -> bool:
+    import app
+    return app.GIRIS_EKRANI_AKTIF
+
+
+# DÜZELTME (Umut'un talebi): giriş ekranı GIRIS_EKRANI_AKTIF=False ile
+# pasife alındı (bkz. app.py). Bu üç test GERÇEK GİRİŞ FORMUNU test
+# ediyor — bayrak False iken form hiç render OLMUYOR, dolayısıyla bu
+# testler o durumda anlamsız (silinmedi, atlanıyor). Bayrak tekrar True
+# yapılırsa bu testler otomatik olarak yeniden aktif olur; regresyon
+# koruması kaybolmuyor, yalnızca şu anki (pasif) yapılandırmayla
+# örtüşmediği için askıya alınıyor.
+_ATLAMA_SEBEBI = ("Giriş ekranı GIRIS_EKRANI_AKTIF=False ile pasif "
+                  "(Umut'un talebi) — form testleri geçerli değil")
+
+
 class TestGirisAkisi:
     def test_giris_sayfasi_gorunur(self, at):
+        if not _giris_ekrani_aktif_mi():
+            pytest.skip(_ATLAMA_SEBEBI)
         at.run()
         assert not at.exception
         assert any("ADR Transport Pro 2026" in str(t.value) for t in at.title)
 
     def test_yanlis_parola_hata_verir(self, at):
+        if not _giris_ekrani_aktif_mi():
+            pytest.skip(_ATLAMA_SEBEBI)
         at.run()
         at.text_input[0].set_value("umut")
         at.text_input[1].set_value("yanlis-parola")
@@ -29,6 +49,8 @@ class TestGirisAkisi:
         assert at.error, "hatalı girişte uyarı bekleniyordu"
 
     def test_dogru_giris_panele_ulasir(self, at):
+        if not _giris_ekrani_aktif_mi():
+            pytest.skip(_ATLAMA_SEBEBI)
         at.run()
         at.text_input[0].set_value("umut")
         at.text_input[1].set_value("Test!123")
@@ -42,6 +64,35 @@ class TestGirisAkisi:
                   for ti in at.text_input)
         # ADR Kontrol Merkezi paneli: en az Ürün Sayısı + Tünel Kodu metrikleri
         assert len(at.metric) >= 2
+
+
+class TestGirisEkraniPasifModu:
+    """Umut'un talebiyle eklenen otomatik-giriş (bypass) davranışı.
+    ⚠️ Güvenlik notu app.py'de GIRIS_EKRANI_AKTIF tanımının yanında —
+    bu mod uygulamayı kimlik doğrulamasız erişilebilir kılar."""
+
+    def test_form_hic_gorunmez_otomatik_girer(self, at):
+        if _giris_ekrani_aktif_mi():
+            pytest.skip("GIRIS_EKRANI_AKTIF=True — bypass modu testi geçerli değil")
+        at.run()
+        assert not at.exception
+        assert not any(ti.label == "Kullanıcı adı" for ti in at.text_input), \
+            "giriş ekranı pasif olmasına rağmen form hâlâ görünüyor"
+        assert "user" in at.session_state
+        assert any("Taşıma Evrakı" in str(t.value) for t in at.title)
+
+    def test_db_hatasinda_zarifce_hata_gosterir_cokme_yerine(self):
+        """DÜZELTME: otomatik-giriş yolu eskiden DB erişilemezse ÇÖKÜYORDU
+        (giriş formunun aksine hiç korumasız yoktu). Artık zarifçe hata
+        gösterip duruyor."""
+        if _giris_ekrani_aktif_mi():
+            pytest.skip("GIRIS_EKRANI_AKTIF=True — bypass modu testi geçerli değil")
+        from streamlit.testing.v1 import AppTest
+        t = AppTest.from_file("app.py", default_timeout=30)
+        t.secrets["db"] = {"dsn": "postgresql://yanlis:sifre@olmayan-host:5432/yok"}
+        t.run()
+        assert not t.exception, "DB hatasında çökmemeli, zarifçe ele alınmalı"
+        assert t.error, "DB erişilemezken bir hata mesajı gösterilmeli"
 
 
 class TestSevkiyatEditoruDogrudanGiris:
@@ -603,6 +654,10 @@ class TestDBUlasilamadiUyarisiPasif:
     eder (Faz 5/6 keep-alive mekanizmasının veritabanı ayağı — bozulmamalı)."""
 
     def test_db_erisilemezken_uyari_gosterilmiyor(self):
+        import app
+        if not app.GIRIS_EKRANI_AKTIF:
+            pytest.skip("Giriş ekranı pasif — _login_page() hiç çalışmıyor, "
+                       "bu test (login sayfasının DB uyarısı) geçerli değil")
         from streamlit.testing.v1 import AppTest
         t = AppTest.from_file("app.py", default_timeout=30)
         t.secrets["db"] = {"dsn": "postgresql://yanlis:sifre@olmayan-host:5432/yok"}

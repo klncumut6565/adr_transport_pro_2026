@@ -49,6 +49,17 @@ st.markdown("""
 # yalnızca kullanıcıya gösterilen sarı kutu gizlenir.
 DB_ULASILAMADI_UYARISI_GOSTER = False
 
+# DÜZELTME (Umut'un talebi): giriş ekranı PASİFE ALINABİLİR — silinmedi,
+# bu bayrakla geri açılabilir (aynı desen: DB_ULASILAMADI_UYARISI_GOSTER).
+#
+# ⚠️ GÜVENLİK UYARISI: bu bayrak False iken uygulama HİÇBİR kimlik
+# doğrulaması yapmadan doğrudan açılır. Uygulama genel erişime açık
+# (Streamlit Cloud) ve gerçek iş verisi (firmalar, sürücüler, sevkiyatlar)
+# barındırıyor — bu durumda adresi bilen HERKES tüm veriye erişebilir.
+# Yalnızca güvendiğin bir ağda/geçici test amacıyla kullan; üretimde
+# tekrar True yapman önerilir.
+GIRIS_EKRANI_AKTIF = False
+
 def _login_page():
     st.title("🚚 ADR Transport Pro 2026")
     st.caption("Tehlikeli madde taşımacılığı yönetim sistemi")
@@ -90,8 +101,29 @@ def _logout():
 def main():
     user = st.session_state.get("user")
     if not user:
-        _login_page()
-        return
+        if GIRIS_EKRANI_AKTIF:
+            _login_page()
+            return
+        # Giriş ekranı pasif: sistemdeki ilk aktif kullanıcı olarak
+        # otomatik oturum açılır (tenant_id veritabanından geldiği için
+        # hardcode edilmiş/bayat bir değere güvenilmez).
+        # DÜZELTME: DB'ye ulaşılamazsa (ör. Supabase geçici kesinti)
+        # burası eskiden ÇÖKÜYORDU — giriş formunun aksine hiç koruması
+        # yoktu. Artık aynı şekilde zarifçe hata gösteriyor.
+        try:
+            row = get_db().execute_one(
+                "SELECT * FROM web_users WHERE is_active ORDER BY id LIMIT 1")
+        except Exception as exc:
+            st.error("Veritabanına ulaşılamıyor, otomatik giriş yapılamadı: "
+                     f"{exc}")
+            st.stop()
+        if not row:
+            st.error("Giriş ekranı pasif ama sistemde aktif kullanıcı "
+                     "bulunamadı — en az bir kullanıcı gerekli.")
+            st.stop()
+        user = dict(row)
+        user.pop("password_hash", None)
+        st.session_state["user"] = user
 
     # Oturum yeniden bağlanırsa kiracıyı tazele (Streamlit rerun'ları arası)
     get_db().set_tenant(user["tenant_id"])

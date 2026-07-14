@@ -1030,3 +1030,32 @@ regex ile de aranıyor.
 Doğrulama: JS'in Node ile gerçekten derlendiği, dış çerçeve otomatik
 yükseklik bildiriminin (postMessage) var olduğu test edildi. Suite:
 286 test.
+
+
+## Düzeltme: giriş ekranı pasife alındı (Umut'un talebi)
+Umut'un talebi: kullanıcı adı/şifre giriş ekranı pasif yapılsın —
+silinmesin, geri açılabilir olsun (aynı desen: DB_ULASILAMADI_UYARISI_
+GOSTER). `app.py`'ye `GIRIS_EKRANI_AKTIF = False` bayrağı eklendi.
+
+⚠️ **GÜVENLİK UYARISI (Umut'a iletildi):** bu bayrak False iken uygulama
+HİÇBİR kimlik doğrulaması yapmadan doğrudan açılıyor. Uygulama genel
+erişime açık (Streamlit Cloud) ve gerçek iş verisi (firmalar, sürücüler,
+sevkiyatlar) barındırıyor — bu durumda adresi bilen HERKES tüm veriye
+erişebilir. Bu, bilinçli olarak uygulanan bir istekti, kod tarafında
+engellenmedi (kullanıcının kendi iş kararı), ama riskin net şekilde
+belirtildiği bir uyarı yorum olarak koda ve bu belgeye işlendi.
+
+Uygulama: `main()`, GIRIS_EKRANI_AKTIF=False iken `_login_page()`'i hiç
+çağırmıyor — bunun yerine sistemdeki İLK AKTİF kullanıcıyı veritabanından
+çekip otomatik oturum açıyor (tenant_id dahil, hardcode edilmiş bir
+değere güvenmiyor — kiracı bağlamı hâlâ doğru kuruluyor). DB'ye
+ulaşılamazsa (giriş formunun aksine eskiden koruması olmayan bu yeni
+yolda) artık zarifçe hata gösterip duruyor, çökmüyor.
+
+Test stratejisi: gerçek giriş FORMUNU test eden 3 eski test + 1 DB-uyarı
+testi, GIRIS_EKRANI_AKTIF=False iken anlamsız olduğu için SİLİNMEDİ,
+bilinçli olarak ATLANIYOR (bayrak tekrar True yapılırsa otomatik
+yeniden aktif olurlar — regresyon koruması kaybolmuyor). Yeni bypass
+davranışı için 2 test eklendi: form hiç görünmüyor + otomatik giriş
+yapılıyor, DB hatasında zarifçe hata (çökme değil). Suite: 284 test
+(4 bilinçli atlama).
