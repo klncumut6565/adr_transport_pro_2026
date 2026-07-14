@@ -552,11 +552,33 @@ with sag:
     st.divider()
 
     # ---- Uyarı ve Hatalar ---------------------------------------------------
-    # DÜZELTME: aynı rapor nesnesinden hem errors/warnings HEM DE info
-    # mesajları gösteriliyor — önceden info seviyesi tamamen kayboluyordu
-    # (masaüstü bunları da listede gösteriyordu, ör. "SRC5 belgesi: X").
+    # DÜZELTME (Umut'un tespiti): burada ÖNCEDEN webcore.engines.ADREngine.
+    # check_compatibility kullanılıyordu — bu, yalnızca segregation_group +
+    # sabit bir sözlüğe dayanan BASİTLEŞTİRİLMİŞ bir kontroldü. Masaüstü,
+    # "ADR Mix Checker Pro v2.4.1" kökenli GERÇEK, 71 birim testli bir motor
+    # kullanıyor (adr_mix_pro paketi: segregasyon kural motoru + Sınıf 1
+    # patlayıcı dipnotları a/b/c/d + CV28 gıda ayrımı + tünel notları). Bu
+    # motor artık webcore/mix_adapter.py üzerinden buraya da bağlandı —
+    # masaüstüyle BİREBİR AYNI sonucu, aynı gerekçeyle üretir.
     st.markdown("**Uyarı ve Hatalar**")
-    uyumsuzluklar = ADREngine.check_compatibility(items) if items else []
+    uyumsuzluklar = []
+    if items:
+        try:
+            from webcore.mix_adapter import gercek_mix_checker
+            _mc_sonuc = gercek_mix_checker(d)
+            if _mc_sonuc:
+                _checker, _adapter = _mc_sonuc
+                for _it in items:
+                    _adapter.register_variant(_it.un_number, _it.classification_code,
+                                              _it.packing_group)
+                _pair_sonuclari, _ = _checker.check_all([_it.un_number for _it in items])
+                for _pr in _pair_sonuclari:
+                    if _pr.status not in ("OK",):
+                        uyumsuzluklar.append(
+                            f"UN{_pr.un1} ({_pr.name1}) + UN{_pr.un2} ({_pr.name2}): "
+                            f"{_pr.reason} [ADR {_pr.adr_reference}]")
+        except Exception as exc:
+            st.caption(f"⚠️ Karışık yükleme kontrolü çalıştırılamadı: {turkce_hata_metni(exc)}")
     hatalar = rapor.errors if rapor else []
     uyarilar = rapor.warnings if rapor else []
     bilgiler = rapor.info if rapor else []
@@ -567,7 +589,7 @@ with sag:
         for _, mesaj in hatalar:
             st.error(mesaj)
         for u in uyumsuzluklar:
-            st.error(f"Uyumsuzluk: {u}")
+            st.error(f"🧯 Karışık Yükleme: {u}")
         for _, mesaj in uyarilar:
             st.warning(mesaj)
     for _, mesaj in bilgiler:

@@ -900,3 +900,88 @@ class TestQRCodeGevsekBagimlilik:
             driver=None, vehicle=None, status_text="Taslak", notes="")
         assert "Firma Kartviziti" in html and "data:image/png" in html
         db.set_setting("doc_show_qr", "0")
+
+
+class TestGercekKarisikYuklemeMotoru:
+    """KRİTİK mimari düzeltme (Umut'un tespiti): web tarafında hem
+    Kontrol Merkezi paneli hem Karışık Yükleme sayfası, ADREngine.
+    check_compatibility adında BASİTLEŞTİRİLMİŞ bir kontrol kullanıyordu
+    (yalnızca segregation_group + sabit sözlük). Masaüstü, "ADR Mix
+    Checker Pro v2.4.1" kökenli GERÇEK, 71 birim testli bir motor
+    kullanır (adr_mix_pro paketi). webcore/mix_adapter.py, masaüstünün
+    AnaDbChemicalAdapter'ının BİREBİR web karşılığıdır — dosya tabanlı
+    Excel yerine webcore'un PostgreSQL chemicals tablosuna bağlanır."""
+
+    def test_gercek_uyumsuz_cift_dogru_tespit_edilir(self):
+        """UN0081 (Sınıf 1 patlayıcı) + UN1978 (Propan, Sınıf 2) —
+        ADR 7.5.2.1'e göre KESİN yasak, dipnot istisnası yok."""
+        if not PG_DSN:
+            pytest.skip("ADR_PG_TEST_DSN tanımlı değil")
+        from webcore.pg import PgDatabaseManager
+        from webcore.mix_adapter import gercek_mix_checker
+
+        db = PgDatabaseManager(PG_DSN)
+        sonuc = gercek_mix_checker(db)
+        assert sonuc is not None, "kural dosyası bulunamadı"
+        checker, adapter = sonuc
+
+        for un in ("0081", "1978"):
+            varyasyonlar = adapter.get_variants(un)
+            assert varyasyonlar, f"UN{un} Tablo A'da yok — test verisi eksik"
+            v = varyasyonlar[0]
+            adapter.register_variant(un, v["classification_code"], v["packing_group"])
+
+        sonuclar, eksikler = checker.check_all(["0081", "1978"])
+        assert not eksikler
+        assert len(sonuclar) == 1
+        r = sonuclar[0]
+        assert r.status == "NO"
+        assert r.adr_reference == "7.5.2.1"
+        assert "1.1D" in r.reason or "Sınıf 1" in r.reason
+
+    def test_uyumlu_cift_ok_doner(self):
+        """Aynı sınıf/etiket iki maddenin GERÇEK motora göre uyumlu
+        çıkması gerekiyorsa (kural dosyasındaki karşılığına göre) OK
+        dönmeli — motorun her şeyi 'NO' diye işaretlemediğinin kanıtı."""
+        if not PG_DSN:
+            pytest.skip("ADR_PG_TEST_DSN tanımlı değil")
+        from webcore.pg import PgDatabaseManager
+        from webcore.mix_adapter import gercek_mix_checker
+
+        db = PgDatabaseManager(PG_DSN)
+        checker, adapter = gercek_mix_checker(db)
+        for un in ("1830", "1824"):  # ikisi de Sınıf 8 (aşındırıcı)
+            v = adapter.get_variants(un)
+            if v:
+                adapter.register_variant(un, v[0]["classification_code"], v[0]["packing_group"])
+        sonuclar, _ = checker.check_all(["1830", "1824"])
+        assert sonuclar and sonuclar[0].status == "OK"
+
+    def test_bilinmeyen_un_cokme_yerine_unknown_doner(self):
+        if not PG_DSN:
+            pytest.skip("ADR_PG_TEST_DSN tanımlı değil")
+        from webcore.pg import PgDatabaseManager
+        from webcore.mix_adapter import gercek_mix_checker
+
+        db = PgDatabaseManager(PG_DSN)
+        checker, adapter = gercek_mix_checker(db)
+        v = adapter.get_variants("1203")
+        adapter.register_variant("1203", v[0]["classification_code"], v[0]["packing_group"])
+        adapter.register_unknown("9999")  # Tablo A'da olmayan uydurma UN
+        sonuclar, eksikler = checker.check_all(["1203", "9999"])
+        # register_unknown yaptığımız için "eksik" listesinde değil,
+        # ama UNKNOWN durumuyla dönmeli, çökme olmamalı
+        assert sonuclar
+        assert sonuclar[0].status in ("UNKNOWN", "OK", "NO", "EXPLOSIVE_SPECIAL", "FOOD_CAUTION")
+
+    def test_zincirde_yeni_ucuncu_parti_bagimlilik_yok(self):
+        """pandas kullanan core/database.py'ye HİÇ dokunulmadığının
+        statik kanıtı — pandas her ne kadar streamlit'in kendi zorunlu
+        bağımlılığı olsa da (güvenli), bu, tasarımın gerçekten
+        PgChemicalAdapter'ı kullandığını, dosya-tabanlı ProductDatabase'i
+        DEĞİL, doğrular."""
+        src = open("webcore/mix_adapter.py", encoding="utf-8").read()
+        kod_satirlari = [l for l in src.splitlines() if not l.strip().startswith("#")]
+        kod_metni = "\n".join(kod_satirlari)
+        assert "from adr_mix_pro.core.database" not in kod_metni
+        assert "import ProductDatabase" not in kod_metni

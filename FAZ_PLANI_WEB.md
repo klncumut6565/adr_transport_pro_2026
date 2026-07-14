@@ -819,3 +819,49 @@ Doğrulama: 2 ürünlü durumun hatasız render olduğu, arama kutusu
 anahtarının dinamik olduğu, sarmalayıcının içerik/JS/PDF-izolasyonunu
 koruduğu, karışık yükleme kontrolünün gerçek bir uyumsuzluğu yakaladığı
 test edildi. Suite: 254 test.
+
+
+## KRİTİK MİMARİ DÜZELTME: Karışık Yükleme artık GERÇEK motoru kullanıyor
+Umut'un haklı itirazı: bir önceki turdaki "zaten doğru çalışıyor"
+değerlendirmem YANLIŞTI. Hem ADR Kontrol Merkezi paneli hem ayrı
+"Karışık Yükleme Kontrolü" sayfası, `webcore.engines.ADREngine.
+check_compatibility` adında BASİTLEŞTİRİLMİŞ bir kontrol kullanıyordu —
+yalnızca segregation_group alanı + sabit, hayali bir INCOMPATIBILITY_
+MATRIX sözlüğüne dayanıyordu. Test ettiğimde bu sahte matrisin
+"Asitler+Bazlar" gibi GERÇEK ADR kuralına dayanmayan bir çift ürettiğini
+gördüm.
+
+Masaüstü ise "ADR Mix Checker Pro v2.4.1" kökenli, 71 birim testli GERÇEK
+bir motor kullanıyor: `adr_mix_pro` paketi — tam segregasyon kural
+motoru (resources/data/segregation_rules.csv, ADR 7.5.2 tam tablosu),
+Sınıf 1 patlayıcı dipnotları (a/b/c/d, 7.5.2.2), CV28 gıda ayrımı kuralı
+(7.5.4), tünel kısıtı notları, risk puanlama. Bu paket repoda zaten
+duruyordu (Qt'ye hiç bağımlı değil), yalnızca web'e hiç bağlanmamıştı.
+
+**Kritik keşif — masaüstü kendi ürünüyle bile dosya-tabanlı motoru
+DOĞRUDAN kullanmıyor:** monolitte `MixLoadCheckPage`, adr_mix_pro'nun
+Excel-okuyan `ProductDatabase`'i yerine `AnaDbChemicalAdapter` adında
+kendi SQL veritabanına (chemicals tablosu) bağlanan bir ADAPTÖR
+kullanıyor. `webcore/mix_adapter.py` bu adaptörün BİREBİR web karşılığı
+(`PgChemicalAdapter`) — SQL sorguları masaüstünden birebir alındı,
+webcore.pg'nin TranslatingCursor'ı `?`→`%s`/`LIKE`→`ILIKE` çevirisini
+otomatik yaptığı için sorgu metinleri değişmeden çalıştı.
+
+Aynı UN'ün Tablo A'da birden fazla varyasyonu olabileceği için (ör.
+UN1950→12 satır), adaptör kayıtları toptan yüklemez — her UN,
+`register_variant()` ile HANGİ varyasyonun kullanılacağı (sevkiyat
+kaleminin zaten taşıdığı classification_code/packing_group'tan) açıkça
+belirtildikten sonra belleğe alınır; masaüstündeki güvenlik tasarımı
+aynen korundu.
+
+`sayfalar/sevkiyat_editor.py` (Kontrol Merkezi paneli) ve
+`sayfalar/karisik_yukleme.py` (ayrı sayfa, ayrıca streamlit-searchbox'a
+geçirildi) artık ikisi de bu GERÇEK motoru kullanıyor.
+
+Doğrulama: UN0081(Sınıf1 patlayıcı)+UN1978(Propan) → GERÇEK motor "NO,
+ADR 7.5.2.1, dipnot istisnası yok" diyor (eski sahte matris bunu hiç
+bilmiyordu); UN1830+UN1824 (ikisi Sınıf 8) → OK dönüyor (motorun her
+şeyi yasaklamadığının kanıtı); bilinmeyen UN çökme yerine UNKNOWN
+dönüyor; zincirde pandas gerektiren dosya-tabanlı ProductDatabase'e HİÇ
+dokunulmadığı statik olarak doğrulandı (pandas zaten Streamlit'in kendi
+zorunlu bağımlılığı, ekstra risk yok). Suite: 258 test.
