@@ -1203,3 +1203,27 @@ takıldı; bunun yerine `ShipmentEditorPage`'i bağımsız kurup gerçek
 setHtml()`'e verdim — çökmeden render etti, içerik doğru geldi. 4 yeni
 kalıcı test eklendi (tests/test_canli_onizleme_html.py). Masaüstü
 suite: 243 test.
+
+
+## MASAÜSTÜ (Seçenek B — ara adım): border-radius temizliği
+Umut'un "PDF çıktısı çok amatör duruyor" tespiti üzerine GERÇEK
+görsel karşılaştırma yapıldı (yalnızca "çöküyor mu" değil, uygulamanın
+kendi QPrinter+QTextDocument yoluyla ürettiği PDF görüntüye çevrilip
+incelendi). Bulgu: Qt'nin QTextDocument motoru `border-radius`'u
+tamamen yok sayıyor (köşeler her zaman kare çıkıyor), bu da tasarımın
+amaçlanandan daha "kaba" görünmesine katkıda bulunuyordu.
+
+**Uygulanan (B seçeneği — düşük riskli, sıfır ek kurulum):**
+`_build_print_html()` içindeki 17 `border-radius` bildirimi kaldırıldı
+(Qt zaten uygulamıyordu, kod temizliği + tutarlılık).
+
+**Dürüst değerlendirme:** Bu, Qt render'ının WeasyPrint'e (web'in
+kullandığı, tam CSS destekli motor) göre hâlâ belirgin şekilde daha
+"düz" göründüğü gerçeğini DEĞİŞTİRMEDİ — temel font/kutu render farkı
+Qt'nin doğasında var. Umut'a önce-sonra-referans üç görüntülü bir
+karşılaştırma sunuldu (masaustu_pdf_karsilastirma.png); B yeterli
+görülmezse A seçeneğine (WeasyPrint'e geçiş — Windows'ta GTK3 kurulum
+gereksinimi olur) geçilecek.
+
+Masaüstünün kendi test paketi (243 test) hiç bozulmadan geçmeye devam
+ediyor.

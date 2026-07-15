@@ -11291,10 +11291,10 @@ class ShipmentEditorPage(QWidget):
             badges = ""
             if item.is_lq:
                 badges += ('<span style="border:1px solid #166534;color:#166534;padding:1px 4px;'
-                           'border-radius:2px;font-size:6.5pt;margin-left:3px;">LQ</span>')
+                           'font-size:6.5pt;margin-left:3px;">LQ</span>')
             if item.is_eq:
                 badges += ('<span style="border:1px solid #1e3a8a;color:#1e3a8a;padding:1px 4px;'
-                           'border-radius:2px;font-size:6.5pt;margin-left:2px;">EQ</span>')
+                           'font-size:6.5pt;margin-left:2px;">EQ</span>')
             item_rows += f"""
             <tr style="background:{bg};">
               <td style="text-align:center;color:{TXT_LITE};font-size:7.5pt;width:3%;">{idx}</td>
@@ -11302,7 +11302,7 @@ class ShipmentEditorPage(QWidget):
               <td style="word-break:break-word;width:28%;font-size:8pt;">{esc(item.proper_name)}{badges}</td>
               <td style="text-align:center;width:6%;">
                 <span style="border:1px solid {class_fg};color:{class_fg};padding:1px 5px;
-                  border-radius:2px;font-size:7.5pt;">{esc(item.class_code)}</span>
+                  font-size:7.5pt;">{esc(item.class_code)}</span>
               </td>
               <td style="text-align:center;width:4%;font-size:8pt;">{esc(item.packing_group) or "—"}</td>
               <td style="text-align:center;width:5%;font-size:8pt;color:{NAVY};">{esc(item.tunnel_code) or "—"}</td>
@@ -11327,7 +11327,7 @@ class ShipmentEditorPage(QWidget):
                            for e in report.compatibility_errors)
             compat_html = f"""
             <div style="margin:6px 0 0;padding:6px 10px;
-              border-left:3px solid {RED};border-radius:0 3px 3px 0;">
+              border-left:3px solid {RED};">
               <span style="color:{RED};font-size:7.5pt;">⚠ UYUMSUZLUK UYARILARI</span>
               <ul style="margin:3px 0 0 14px;padding:0;color:{RED};">{errs}</ul>
             </div>"""
@@ -11338,7 +11338,7 @@ class ShipmentEditorPage(QWidget):
         if notes_text:
             notes_html = f"""
             <div style="margin-top:8px;padding:6px 10px;
-              border-left:3px solid #D97706;border-radius:0 3px 3px 0;page-break-inside:avoid;">
+              border-left:3px solid #D97706;page-break-inside:avoid;">
               <span style="color:#92400E;font-size:7.5pt;">NOT:</span>
               <span style="color:{TXT_MUTED};font-size:8pt;"> {esc(notes_text)}</span>
             </div>"""
@@ -11353,7 +11353,7 @@ class ShipmentEditorPage(QWidget):
           <tr>
             <!-- GÖNDERİCİ İMZA KUTUSU -->
             <td style="width:50%;vertical-align:top;">
-              <div style="border:1px solid {RULE};border-radius:4px;overflow:hidden;">
+              <div style="border:1px solid {RULE};overflow:hidden;">
                 <div style="border-bottom:1px solid {RULE};padding:4px 8px;
                   font-size:6.5pt;letter-spacing:0.8px;color:{NAVY};">
                   GÖNDERİCİ / YÜKLETEN
@@ -11366,7 +11366,7 @@ class ShipmentEditorPage(QWidget):
                   <div style="font-size:7pt;color:{TXT_LITE};margin-bottom:2px;">Ad Soyad:</div>
                   <div style="border-bottom:1px solid {RULE};min-height:22px;margin-bottom:10px;"></div>
                   <div style="font-size:7pt;color:{TXT_LITE};margin-bottom:2px;">İmza / Kaşe:</div>
-                  <div style="border:1px solid {RULE};min-height:80px;border-radius:2px;margin-bottom:10px;"></div>
+                  <div style="border:1px solid {RULE};min-height:80px;margin-bottom:10px;"></div>
                   <div style="font-size:6pt;color:{TXT_LITE};line-height:1.4;border-top:1px solid {RULE};padding-top:4px;">
                     Tehlikeli maddelerin sınıflandırılması, paketlenmesi ve etiketlenmesinin
                     ADR hükümlerine uygun olduğunu beyan ederim. (ADR 5.4.1.1.1/f)
@@ -11376,7 +11376,7 @@ class ShipmentEditorPage(QWidget):
             </td>
             <!-- SÜRÜCÜ İMZA KUTUSU -->
             <td style="width:50%;vertical-align:top;">
-              <div style="border:1px solid {RULE};border-radius:4px;overflow:hidden;">
+              <div style="border:1px solid {RULE};overflow:hidden;">
                 <div style="border-bottom:1px solid {RULE};padding:4px 8px;
                   font-size:6.5pt;letter-spacing:0.8px;color:{NAVY};">
                   SÜRÜCÜ
@@ -11389,7 +11389,7 @@ class ShipmentEditorPage(QWidget):
                   <div style="font-size:7pt;color:{TXT_LITE};margin-bottom:2px;">Ad Soyad:</div>
                   <div style="border-bottom:1px solid {RULE};min-height:22px;margin-bottom:10px;"></div>
                   <div style="font-size:7pt;color:{TXT_LITE};margin-bottom:2px;">İmza:</div>
-                  <div style="border:1px solid {RULE};min-height:80px;border-radius:2px;margin-bottom:10px;"></div>
+                  <div style="border:1px solid {RULE};min-height:80px;margin-bottom:10px;"></div>
                   <div style="font-size:6pt;color:{TXT_LITE};line-height:1.4;border-top:1px solid {RULE};padding-top:4px;">
                     Yükü teslim aldığımı ve taşımanın ADR hükümlerine uygun olarak
                     gerçekleştirileceğini kabul ederim.
@@ -11447,7 +11447,6 @@ class ShipmentEditorPage(QWidget):
   .badge {{
     display: inline-block;
     padding: 1px 5px;
-    border-radius: 3px;
     font-weight: normal;
     font-size: 7pt;
   }}
@@ -11489,7 +11488,7 @@ class ShipmentEditorPage(QWidget):
 <table style="border-collapse:separate;border-spacing:6px 0;width:100%;">
   <tr>
     <!-- GÖNDERİCİ -->
-    <td style="width:49%;vertical-align:top;border:1px solid {RULE};border-radius:4px;padding:0;overflow:hidden;">
+    <td style="width:49%;vertical-align:top;border:1px solid {RULE};padding:0;overflow:hidden;">
       <div style="border-bottom:1px solid {RULE};padding:4px 8px;font-size:6.5pt;letter-spacing:0.8px;color:{NAVY};">
         GÖNDERİCİ
       </div>
@@ -11506,7 +11505,7 @@ class ShipmentEditorPage(QWidget):
       </div>
     </td>
     <!-- ALICI -->
-    <td style="width:49%;vertical-align:top;border:1px solid {RULE};border-radius:4px;padding:0;overflow:hidden;">
+    <td style="width:49%;vertical-align:top;border:1px solid {RULE};padding:0;overflow:hidden;">
       <div style="border-bottom:1px solid {RULE};padding:4px 8px;font-size:6.5pt;letter-spacing:0.8px;color:{NAVY};">
         ALICI
       </div>
@@ -11569,7 +11568,7 @@ class ShipmentEditorPage(QWidget):
 <!-- ══════════════════════ ADR UYUMLULUK ŞERİDİ (sadece muafiyet varsa) ═══════ -->
 {"" if not has_exemption else f"""
 <div class='no-break' style='margin-top:5px;'>
-<table style='border:1px solid {RULE};border-radius:3px;overflow:hidden;'>
+<table style='border:1px solid {RULE};overflow:hidden;'>
   <tr>
     <td style='padding:4px 8px;border-right:1px solid {RULE};width:22%;vertical-align:top;'>
       <div style='font-size:6pt;color:{NAVY};letter-spacing:0.5px;'>1.1.3.6 MİKTAR MUAFİYETİ</div>
@@ -11577,8 +11576,8 @@ class ShipmentEditorPage(QWidget):
         {pts_display}
       </div>
       <div style='font-size:6pt;color:{TXT_MUTED};margin-top:1px;'>{pts_sub}</div>
-      <div style='background:#E4EAF2;border-radius:3px;height:4px;margin-top:3px;'>
-        <div style='background:{bar_color};width:{bar_pct}%;height:4px;border-radius:3px;'></div>
+      <div style='background:#E4EAF2;height:4px;margin-top:3px;'>
+        <div style='background:{bar_color};width:{bar_pct}%;height:4px;'></div>
       </div>
     </td>
     <td style='padding:4px 8px;border-right:1px solid {RULE};width:19%;vertical-align:top;'>
@@ -11615,7 +11614,7 @@ class ShipmentEditorPage(QWidget):
 <!-- ══════════════════════ EMNİYET PLANI UYARISI (koşullu) ═══════════ -->
 {"" if not security_plan_required else f'''
 <div class='no-break' style='margin-top:6px;padding:8px 12px;
-  border-left:4px solid #B91C1C;border-radius:0 4px 4px 0;'>
+  border-left:4px solid #B91C1C;'>
   <div style='font-size:8pt;color:#B91C1C;margin-bottom:4px;'>
     ADR 1.10.3 — EMNİYET PLANI ZORUNLU
   </div>
@@ -11630,7 +11629,7 @@ class ShipmentEditorPage(QWidget):
 
 <!-- ══════════════════════ ALT BİLGİ ══════════════════════════════════ -->
 <div style="margin-top:5px;padding:4px 10px;border:1px solid {RULE};
-  border-radius:3px;font-size:6pt;color:{TXT_MUTED};text-align:center;">
+  font-size:6pt;color:{TXT_MUTED};text-align:center;">
   <br>
   Bu belge ADR Yönetmeliği Madde 5.4.1 kapsamında düzenlenmiştir.
   <br>
