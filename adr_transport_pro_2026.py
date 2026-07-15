@@ -8884,12 +8884,20 @@ class ADRTransportPro(QMainWindow):
         layout.addWidget(warn_group)
 
         # ── Canlı Evrak Önizleme ─────────────────────────────────────────
+        # DÜZELTME (Umut'un tespiti: "düz metin, amatör duruyor"): burada
+        # önceden QPlainTextEdit ile sadece bir METİN ÖZETİ gösteriliyordu
+        # (UN numaraları, puan, plaka durumu — düz satırlar). Artık QTextEdit
+        # ile GERÇEK belge HTML'i (_build_print_html() — PDF üretiminde
+        # kullanılan AYNI HTML) render ediliyor; Qt'nin QTextDocument motoru
+        # zaten bu HTML'i PDF'e çevirmek için kullanılıyordu (satır ~10688),
+        # burada salt-okunur ekran önizlemesi için de kullanılıyor — önizleme
+        # artık gerçek çıktıyla BİREBİR TUTARLI (WYSIWYG'e yakın).
         preview_group = QGroupBox("CANLI EVRAK ÖNİZLEME")
         prev_lay = QVBoxLayout(preview_group)
-        self.preview_text = QPlainTextEdit()
+        self.preview_text = QTextEdit()
         self.preview_text.setReadOnly(True)
-        self.preview_text.setMinimumHeight(180)
-        self.preview_text.setMaximumHeight(320)
+        self.preview_text.setMinimumHeight(280)
+        self.preview_text.setMaximumHeight(520)
         prev_lay.addWidget(self.preview_text)
         layout.addWidget(preview_group)
 
@@ -9217,66 +9225,21 @@ class ADRTransportPro(QMainWindow):
         self._update_preview(items, report)
 
     def _update_preview(self, items: List[ShipmentItem], report: ADRReport):
-        preview = []
-        preview.append("=" * 50)
-        preview.append("ADR TEHLIKELI MADDE TASIMA EVRAKI")
-        preview.append("=" * 50)
-        preview.append("")
-
-        doc_info = self.shipment_page.get_document_info()
-        preview.append(f"Evrak No: {doc_info.get('document_no', '---')}")
-        preview.append(f"Tarih: {doc_info.get('date', '---')}")
-        preview.append("")
-
-        sender = self.shipment_page.get_selected_sender()
-        if sender:
-            preview.append(f"GONDERICI: {sender.name}")
-            preview.append(f"Adres: {sender.address}, {sender.city}")
-            preview.append("")
-
-        receiver = self.shipment_page.get_selected_receiver()
-        if receiver:
-            preview.append(f"ALICI: {receiver.name}")
-            preview.append(f"Adres: {receiver.address}, {receiver.city}")
-            preview.append("")
-
-        preview.append("-" * 50)
-        preview.append("TASINAN URUNLER:")
-        preview.append("-" * 50)
-
-        for i, item in enumerate(items, 1):
-            preview.append(f"{i}. UN{item.un_number} {item.proper_name}")
-            preview.append(f"   Sinif: {item.class_code} | PG: {item.packing_group} | Tunel: {item.tunnel_code or '-'}")
-            preview.append(f"   Miktar: {item.net_quantity} {item.unit}")
-            preview.append(f"   Ambalaj: {item.packaging_type} x {item.packaging_count}")
-            if item.is_lq:
-                preview.append("   [LQ - Limited Quantity]")
-            if item.is_eq:
-                preview.append("   [EQ - Excepted Quantity]")
-            preview.append("")
-
-        preview.append("-" * 50)
-        preview.append("ADR KONTROL OZETI:")
-        preview.append("-" * 50)
-        preview.append(f"Toplam Puan: {report.total_points:.0f} / {MAX_1136_POINTS}")
-        preview.append(f"Turuncu Plaka: {'EVET' if report.orange_plate_required else 'HAYIR'}")
-        preview.append(f"Muafiyet: {report.exemption_type}")
-        preview.append(f"Yazili Talimat: {'ZORUNLU' if report.written_instructions_required else 'Gerekmez'}")
-        preview.append("")
-
-        # DÜZELTME: GERÇEK motor sonucu burada (self.db erişimi olan bu
-        # noktada) hesaplanıp report.compatibility_errors'a yerleştiriliyor.
-        report.compatibility_errors = _gercek_karisik_yukleme_kontrolu(self.db, items)
-
-        if report.compatibility_errors:
-            preview.append("UYUMSUZLUKLAR:")
-            for err in report.compatibility_errors:
-                preview.append(f"  ! {err}")
-            preview.append("")
-
-        preview.append("=" * 50)
-
-        self.preview_text.setPlainText("\n".join(preview))
+        # DUZELTME (Umut'un tespiti: "duz metin, amator duruyor"): burada
+        # onceden elle bir metin ozeti insa edilip setPlainText ile
+        # gosteriliyordu. Artik GERCEK belge HTML'i -- PDF uretiminde
+        # kullanilan AYNI _build_print_html() -- setHtml ile render ediliyor.
+        # `report` parametresi artik burada KULLANILMIYOR (uyumsuzluk dahil
+        # her sey _build_print_html() icinde kendi hesapliyor); yine de
+        # imza degismedi, cunku ADR Kontrol Merkezi panelindeki DIGER
+        # gostergeler (puan cubugu, plaka etiketi vb.) hala bu report
+        # nesnesini ayrica kullaniyor.
+        try:
+            html = self.shipment_page._build_print_html()
+            self.preview_text.setHtml(html)
+        except Exception as e:
+            self.preview_text.setHtml(
+                f'<p style="color:#F38BA8;">Onizleme olusturulamadi: {e}</p>')
 
     def _new_shipment(self):
         self.shipment_page.clear_all()

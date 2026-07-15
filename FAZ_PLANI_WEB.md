@@ -1171,3 +1171,35 @@ masaüstüne HİÇ geri taşınmamıştı.
 Masaüstünün kendi test paketi (234 test) hiç bozulmadan geçmeye devam
 ediyor; 5 yeni kalıcı test eklendi (tests/test_tablo_a_varyant_kaybi.py)
 — toplam masaüstü suite: 239 test.
+
+
+## MASAÜSTÜ İYİLEŞTİRMESİ: Canlı önizleme artık gerçek HTML, düz metin değil
+Umut'un geri bildirimi: web'deki PDF önizleme sorununu masaüstünde
+kontrol ederken, orada FARKLI ama gerçek bir sorun ortaya çıktı — canlı
+önizleme paneli yalnızca düz metin bir özet gösteriyordu ("bu program
+için çok amatör duruyor"). Web'deki sorun (tarayıcı @page kuralını
+ekranda yok sayması) masaüstünde teknik olarak var OLAMAZDI (tarayıcı/
+iframe hiç kullanılmıyor) — ama bu ayrı, gerçek bir UX eksikliğiydi.
+
+**Önceki durum:** `self.preview_text = QPlainTextEdit()` + elle
+biriktirilmiş metin satırları (`preview.append(...)`, `setPlainText`).
+
+**Düzeltme:** `QTextEdit()`'e geçildi (zaten dosyada başka önizlemeler
+için kullanılıyordu, Qt'nin zengin metin/HTML render motorunu
+destekler). `_update_preview()` artık `self.shipment_page.
+_build_print_html()` — PDF üretiminde kullanılan AYNI fonksiyon — ile
+üretilen gerçek belge HTML'ini `setHtml()` ile gösteriyor. Bu HTML
+zaten `QTextDocument` üzerinden PDF'e çevrilmek için kullanılıyordu
+(satır ~10688) — aynı motoru ekran önizlemesi için de kullanmak,
+önizlemenin gerçek çıktıyla BİREBİR TUTARLI olmasını sağlıyor.
+
+Panel yüksekliği de büyütüldü (180-320px → 280-520px) — gerçek bir
+belge sayfası artık daha okunabilir bir alanda gösteriliyor.
+
+**Doğrulama:** Tam ana pencereyi (ADRTransportPro) ekransız modda
+kurmaya çalıştım ama lisans alt sistemine (ilgisiz bir bağımlılık)
+takıldı; bunun yerine `ShipmentEditorPage`'i bağımsız kurup gerçek
+`_build_print_html()` çıktısını (44K+ karakter) doğrudan `QTextEdit.
+setHtml()`'e verdim — çökmeden render etti, içerik doğru geldi. 4 yeni
+kalıcı test eklendi (tests/test_canli_onizleme_html.py). Masaüstü
+suite: 243 test.
