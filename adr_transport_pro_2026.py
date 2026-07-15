@@ -4291,10 +4291,17 @@ class ADREngine:
                 f"Tunel kodu {tunnel}: Kisitli tunel gecisi"))
 
         # === UYUMSUZLUK KONTROLU ===
-        compat_errors = cls.check_compatibility(items)
-        for err in compat_errors:
-            report.errors.append((WarningLevel.CRITICAL, err))
-        report.compatibility_errors = compat_errors
+        # DÜZELTME (web portu denetiminde bulundu, aynı hata burada da
+        # vardı — satırı satırına taşındığı için): burada ÖNCEDEN
+        # cls.check_compatibility(items) çağrılıyordu — sabit, HAYALİ bir
+        # sözlüğe dayanan, GERÇEK bir ADR referansı olmayan basitleştirilmiş
+        # bir kontroldü. GERÇEK motor (AnaDbChemicalAdapter + MixChecker,
+        # bu dosyada zaten mevcut) burada ÇAĞRILAMAZ çünkü generate_adr_report
+        # veritabanı bağlantısına erişemez (saf hesaplama fonksiyonu).
+        # report.compatibility_errors artık BOŞ bırakılıyor; gerçek sonuç
+        # _gercek_karisik_yukleme_kontrolu() ile ÇAĞIRAN taraflarca
+        # (_update_preview, _build_print_html) ayrıca hesaplanıp yerleştirilir.
+        report.compatibility_errors = []
 
         # === LQ / EQ DURUMU ===
         if lq_count > 0:
@@ -7755,6 +7762,42 @@ class AnaDbChemicalAdapter:
         return [self._row_to_record(r) for r in (rows or [])]
 
 
+def _gercek_karisik_yukleme_kontrolu(db, items) -> list:
+    """DÜZELTME (web portundaki denetimde bulunan hata — masaüstünde de
+    aynı kusur vardı, satırı satırına taşındığı için): generate_adr_report
+    İÇİNDE eskiden basitleştirilmiş, GERÇEK bir ADR referansı olmayan
+    ADRTransportPro.check_compatibility() çağrılıyor, sonucu
+    report.compatibility_errors'a yazılıyordu. Bu, hem canlı panelin
+    metin önizlemesinde (_update_preview) hem YAZDIRILAN belgede
+    (_build_print_html) gösteriliyordu — GERÇEK motor (AnaDbChemicalAdapter
+    + MixChecker, zaten bu dosyada mevcut, MixLoadCheckPage'in kullandığı)
+    hiç devreye girmiyordu.
+
+    Bu fonksiyon, her iki gösterim noktasında da report.compatibility_errors
+    ATANMADAN HEMEN ÖNCE çağrılır; MixLoadCheckPage'in kendi self.adapter/
+    self.checker'ı FARKLI bir sınıfa ait olduğu için yeniden kullanılamaz —
+    bu yüzden burada TAZE bir örnek kurulur (ucuz bir işlem, sorun değil).
+    Herhangi bir hata durumunda (kural dosyası bulunamazsa vb.) BOŞ liste
+    döner — evrak/panel üretimini asla çökertmez."""
+    try:
+        rule_engine = SegregationRuleEngine(_MIX_RULE_FILE)
+        adapter = AnaDbChemicalAdapter(db)
+        checker = MixChecker(adapter, rule_engine)
+        if len(items) < 2:
+            return []
+        for it in items:
+            adapter.register_variant(it.un_number, it.classification_code,
+                                     it.packing_group)
+        sonuclar, _eksikler = checker.check_all([it.un_number for it in items])
+        return [
+            f"UN{r.un1} ({r.name1}) + UN{r.un2} ({r.name2}): {r.reason} "
+            f"[ADR {r.adr_reference}]"
+            for r in sonuclar if r.status not in ("OK",)
+        ]
+    except Exception:
+        return []
+
+
 class VariantPickerDialog(QDialog):
     """Bir UN numarasinin birden fazla ADR Tablo A varyasyonu oldugunda
     kullaniciya secim yaptiran diyalog (orn. UN1950 AEROSOL -> 12 secenek)."""
@@ -9131,6 +9174,10 @@ class ADRTransportPro(QMainWindow):
         preview.append(f"Muafiyet: {report.exemption_type}")
         preview.append(f"Yazili Talimat: {'ZORUNLU' if report.written_instructions_required else 'Gerekmez'}")
         preview.append("")
+
+        # DÜZELTME: GERÇEK motor sonucu burada (self.db erişimi olan bu
+        # noktada) hesaplanıp report.compatibility_errors'a yerleştiriliyor.
+        report.compatibility_errors = _gercek_karisik_yukleme_kontrolu(self.db, items)
 
         if report.compatibility_errors:
             preview.append("UYUMSUZLUKLAR:")
@@ -11215,6 +11262,11 @@ class ShipmentEditorPage(QWidget):
         if not item_rows:
             item_rows = (f'<tr><td colspan="9" style="text-align:center;color:{TXT_LITE};'
                          f'padding:14px;font-size:8.5pt;">Ürün eklenmemiş</td></tr>')
+
+        # DÜZELTME: GERÇEK motor sonucu burada (self.db erişimi olan bu
+        # noktada) hesaplanıp report.compatibility_errors'a yerleştiriliyor
+        # — YAZDIRILAN belge artık gerçek bir ADR referansı gösteriyor.
+        report.compatibility_errors = _gercek_karisik_yukleme_kontrolu(self.db, self.items)
 
         # ── Uyumsuzluk uyarısı (varsa) ────────────────────────────────────
         compat_html = ""

@@ -1096,3 +1096,40 @@ Doğrulama: generate_adr_report()'un artık sahte mesaj üretmediği,
 yazdırılan belgede eski formatın kaybolup gerçek ADR referansının
 (7.5.2.1) göründüğü, uyumlu bir çiftte belgede hiç uyarı kutusu
 çıkmadığı (ters kontrol) test edildi. Suite: 287 test.
+
+
+## MASAÜSTÜ DÜZELTMESİ: aynı sahte uyumsuzluk kontrolü orada da vardı
+Umut'un talebi üzerine, web portunda bulunan "eski sahte uyumsuzluk
+kontrolü" hatası (bkz. yukarı) masaüstünde (adr_transport_pro_2026.py)
+de düzeltildi — Faz 0a'da motor satırı satırına taşındığı için AYNI
+kusur masaüstünde de vardı ve web'e oradan geldi.
+
+**Bulunan iki gösterim noktası:**
+1. `_update_preview` (ADRTransportPro/ana pencere sınıfı) — canlı ADR
+   Kontrol Merkezi panelinin metin önizlemesi.
+2. `_build_print_html` (ShipmentEditorPage) — YAZDIRILAN Taşıma Evrakı
+   belgesinin kendisi.
+
+**Düzeltme:**
+- `generate_adr_report()` içindeki eski `check_compatibility()` çağrısı
+  kaldırıldı (web'deki gibi; metodun kendisi SİLİNMEDİ, dormant kaldı).
+- Yeni bir yardımcı fonksiyon eklendi:
+  `_gercek_karisik_yukleme_kontrolu(db, items)` — masaüstünde ZATEN
+  mevcut olan GERÇEK motoru (AnaDbChemicalAdapter + MixChecker,
+  MixLoadCheckPage'in kullandığı sınıflar) kullanır. MixLoadCheckPage'in
+  kendi self.adapter/self.checker'ı FARKLI bir sınıfa ait olduğu için
+  yeniden kullanılamadı; her çağrıda taze bir örnek kurulur (ucuz,
+  sorun değil). Hata durumunda BOŞ liste döner, evrak üretimini asla
+  çökertmez.
+- Bu yardımcı, HER İKİ gösterim noktasında da `report.compatibility_
+  errors` atanmadan hemen önce çağrılıyor.
+
+**Doğrulama (PyQt6 offscreen modda, gerçek Tablo A verisiyle — yalnızca
+sözdizimi değil, GERÇEK fonksiyonel test):** monolit başarıyla yüklendi,
+2873 kayıtlık Tablo A içe aktarıldı, UN0081(patlayıcı)+UN1978(propan)
+için generate_adr_report artık sahte mesaj üretmiyor,
+_gercek_karisik_yukleme_kontrolu gerçek "ADR 7.5.2.1" referansıyla doğru
+sonuç üretiyor. Masaüstünün kendi mevcut test paketi (228 test) hiç
+bozulmadan geçmeye devam ediyor; 6 yeni kalıcı test eklendi
+(tests/test_fake_compatibility_removed.py) — toplam masaüstü suite: 234
+test.
