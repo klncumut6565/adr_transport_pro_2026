@@ -1,14 +1,19 @@
-# ADR Transport Document Generator v2.1 - Dependencies
-# Python 3.8+
+# ADR Transport Pro 2026 - Masaüstü Bağımlılıkları
+# Python 3.10+ önerilir
+
+# Arayüz (ZORUNLU — bu dosyada eksikti, eklendi)
+PyQt6>=6.6.0
 
 # PDF Export (ReportLab)
 reportlab>=3.6.0
 
-# Excel Export (openpyxl)
+# Excel Export/İçe Aktarma (openpyxl)
 openpyxl>=3.0.0
 
-# Standard library modules used:
-#   tkinter (built-in), json, os, sys, logging, datetime, 
-#   threading, re, typing, ctypes
+# Karışık Yükleme motoru (adr_mix_pro) için
 qrcode
 Pillow
+
+# Standart kütüphane modülleri (ekstra kurulum gerekmez):
+#   tkinter (bazı dağıtımlarda ayrı paket: python3-tk), json, os, sys,
+#   logging, datetime, threading, re, typing, ctypes, sqlite3
