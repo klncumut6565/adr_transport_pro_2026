@@ -1780,6 +1780,61 @@ class DatabaseManager:
             """)
             cursor.execute("DROP TABLE chemicals_eski")
 
+        # DÜZELTME (Umut'un tespiti: "UN1202 için 3 seçenek, UN1950 için
+        # daha fazla seçenek çıkması gerekirken tek seçenek çıkıyor"):
+        # UNIQUE(un_number, classification_code, packing_group) kısıtı
+        # yukarıdaki göçle doğru bir bileşik anahtar olarak eklenmişti
+        # AMA resmi Tablo A'da bu üçlü AYNI olup yalnızca özel hüküm
+        # (6. sütun) ile ayrışan GERÇEKTEN FARKLI satırlar var (ör.
+        # UN1133 F1 PG II: 640C ve 640D varyantları). Bu üçlü YANLIŞLIKLA
+        # "birincil anahtar" sayılıp böyle satırlar birbirinin üzerine
+        # yazılıyordu — 2939 geçerli satırdan 66'sı kayboluyor, 2873
+        # kalıyordu (bu fonksiyonun karşılığı web tarafında zaten
+        # düzeltilmişti; masaüstüne hiç geri taşınmamıştı). Kısıt tamamen
+        # kaldırılıyor; tekilleştirme artık import_table_a_excel()
+        # içinde TAM SATIR İMZASI ile yapılıyor (aşağıya bakınız).
+        table_sql2 = cursor.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='chemicals'"
+        ).fetchone()
+        if table_sql2 and "UNIQUE(un_number, classification_code, packing_group)" \
+                in (table_sql2[0] or ""):
+            cursor.execute("ALTER TABLE chemicals RENAME TO chemicals_eski2")
+            cursor.execute("""
+                CREATE TABLE chemicals (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    un_number TEXT NOT NULL,
+                    classification_code TEXT DEFAULT '',
+                    proper_shipping_name_tr TEXT,
+                    proper_shipping_name_en TEXT,
+                    class_code TEXT,
+                    packing_group TEXT,
+                    tunnel_code TEXT,
+                    transport_category TEXT,
+                    segregation_group TEXT,
+                    special_provisions TEXT,
+                    lq_allowed INTEGER DEFAULT 0,
+                    eq_allowed INTEGER DEFAULT 0,
+                    limited_quantity TEXT DEFAULT '',
+                    excepted_quantity TEXT DEFAULT '',
+                    hazard_labels TEXT
+                )
+            """)
+            cursor.execute("""
+                INSERT INTO chemicals
+                    (id, un_number, classification_code, proper_shipping_name_tr,
+                     proper_shipping_name_en, class_code, packing_group, tunnel_code,
+                     transport_category, segregation_group, special_provisions,
+                     lq_allowed, eq_allowed, limited_quantity, excepted_quantity,
+                     hazard_labels)
+                SELECT id, un_number, classification_code, proper_shipping_name_tr,
+                       proper_shipping_name_en, class_code, packing_group, tunnel_code,
+                       transport_category, segregation_group, special_provisions,
+                       lq_allowed, eq_allowed, limited_quantity, excepted_quantity,
+                       hazard_labels
+                FROM chemicals_eski2
+            """)
+            cursor.execute("DROP TABLE chemicals_eski2")
+
         # companies.logo_path (PDF antet)
         comp_cols = {row[1] for row in cursor.execute(
             "PRAGMA table_info(companies)").fetchall()}
@@ -2638,11 +2693,37 @@ class DatabaseManager:
 
     def import_table_a_excel(self, xlsx_path: str) -> int:
         """Resmi ADR Tablo A Excel'ini (cok satirli baslik, sutun 7a/7b
-        dahil) uygulamanin kimyasal veritabanina aktarir. Var olan UN
-        kayitlari guncellenir; LQ/EQ, kategori ve tunel Tablo A'dan gelir."""
+        dahil) uygulamanin kimyasal veritabanina aktarir.
+
+        DUZELTME (Umut'un tespiti: arama sonucunda UN basina yalnizca
+        1 secenek cikiyordu, olmasi gerekenden cok azdi): eskiden bu
+        fonksiyon self._upsert_chemical(c) cagiriyordu -- o da (UN,
+        siniflandirma kodu, paketleme grubu) uclusunu "birincil anahtar"
+        sayiyordu. Ama resmi Tablo A'da bu uclu AYNI olup yalnizca ozel
+        hukum (6. sutun) ile ayrisan GERCEKTEN FARKLI satirlar var (or.
+        UN1133 F1 PG II: 640C ve 640D varyantlari) -- bu satirlar
+        yanlislikla birbirinin uzerine yaziliyordu (2939 gecerli satirdan
+        66'si kayboluyor, 2873 kaliyordu). Tekillestirme artik TAM SATIR
+        IMZASI ile yapiliyor: 640C/640D gibi varyantlar korunur, yalnizca
+        birebir ayni satirin ikinci kez eklenmesi atlanir. Boylece Tablo
+        A'yi tekrar yuklemek de guvenlidir (idempotent).
+        """
         from openpyxl import load_workbook
         wb = load_workbook(xlsx_path, read_only=True, data_only=True)
         ws = wb.worksheets[0]
+
+        mevcut_imzalar = {
+            (r["un_number"], r["classification_code"], r["class_code"],
+             r["packing_group"], r["special_provisions"],
+             r["limited_quantity"], r["excepted_quantity"],
+             r["tunnel_code"], r["transport_category"],
+             r["proper_shipping_name_tr"])
+            for r in self.execute(
+                """SELECT un_number, classification_code, class_code,
+                          packing_group, special_provisions, limited_quantity,
+                          excepted_quantity, tunnel_code, transport_category,
+                          proper_shipping_name_tr FROM chemicals""")
+        }
 
         imported = 0
         for row in ws.iter_rows(min_row=5, values_only=True):
@@ -2676,8 +2757,16 @@ class DatabaseManager:
                 eq_allowed=ADREngine.eq_limits(eq_code)[0] > 0,
                 hazard_labels=self._xl_clean(row[5] if len(row) > 5 else None),
             )
-            if self._upsert_chemical(c):
-                imported += 1
+            imza = (c.un_number, c.classification_code, c.class_code,
+                    c.packing_group, c.special_provisions,
+                    c.limited_quantity, c.excepted_quantity,
+                    c.tunnel_code, c.transport_category,
+                    c.proper_shipping_name_tr)
+            if imza in mevcut_imzalar:
+                continue
+            mevcut_imzalar.add(imza)
+            self.add_chemical(c)
+            imported += 1
         return imported
 
     def import_company_inventory_excel(self, xlsx_path: str) -> int:

@@ -1133,3 +1133,41 @@ sonuç üretiyor. Masaüstünün kendi mevcut test paketi (228 test) hiç
 bozulmadan geçmeye devam ediyor; 6 yeni kalıcı test eklendi
 (tests/test_fake_compatibility_removed.py) — toplam masaüstü suite: 234
 test.
+
+
+## MASAÜSTÜ DÜZELTMESİ: Tablo A'da UN başına yalnızca 1 varyasyon çıkıyordu
+Umut'un tespiti: Taşıma Evrakı → Taşınan Ürünler arama kısmında UN
+numarasına göre arandığında yalnızca TEK seçenek çıkıyordu — UN1202
+için 3, UN1950 için 12 seçenek çıkması gerekirken.
+
+**Kök sebep:** `_upsert_chemical()`'ın "bu kayıt zaten var mı" kontrolü
+yalnızca (UN, sınıflandırma kodu, paketleme grubu) üçlüsüne bakıyordu.
+Ama resmi Tablo A'da bu üçlü AYNI olup yalnızca özel hüküm (6. sütun)
+ile ayrışan GERÇEKTEN FARKLI satırlar var (ör. UN1133 F1 PG II: 640C/
+640D varyantları) — bu satırlar yanlışlıkla birbirinin üzerine
+yazılıyordu. AYNI SINIF HATA web tarafında (webcore/db.py) zaten
+düzeltilmişti — tam satır imzası ile tekilleştirme — ama bu düzeltme
+masaüstüne HİÇ geri taşınmamıştı.
+
+**İki parçalı düzeltme:**
+1. Şema göçü: `chemicals` tablosundaki kısıtlayıcı `UNIQUE(un_number,
+   classification_code, packing_group)` kısıtı kaldırıldı (mevcut
+   tablo-yeniden-inşa deseniyle, veri kaybı olmadan). Bu kısıt olmadan
+   bile Python mantığı doğru olsa, veritabanı seviyesinde INSERT
+   reddedilirdi — ikisi birlikte gerekliydi.
+2. `import_table_a_excel()` artık web ile BİREBİR AYNI tam-satır-imzası
+   mantığını kullanıyor (UN + sınıflandırma kodu + sınıf + PG + özel
+   hüküm + LQ + EQ + tünel + kategori + ad) — 640C/640D gibi varyantlar
+   korunuyor, yalnızca birebir aynı satırın ikinci kez eklenmesi
+   atlanıyor (idempotent yeniden yükleme).
+
+**Doğrulama (PyQt6 offscreen modda, gerçek Tablo A verisiyle):**
+- Toplam kayıt: 2939 (web'in Postgres'iyle birebir aynı sayı)
+- UN1202 araması: 3 varyasyon (Umut'un beklediği tam sayı)
+- UN1950 araması: 12 varyasyon
+- Yeniden yükleme: 0 yeni kayıt (idempotent, kopya oluşturmuyor)
+- Şemada kısıtlayıcı UNIQUE'in gerçekten kalktığı doğrudan kontrol edildi
+
+Masaüstünün kendi test paketi (234 test) hiç bozulmadan geçmeye devam
+ediyor; 5 yeni kalıcı test eklendi (tests/test_tablo_a_varyant_kaybi.py)
+— toplam masaüstü suite: 239 test.
