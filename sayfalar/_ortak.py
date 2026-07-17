@@ -121,3 +121,30 @@ def kimyasal_etiket(c) -> str:
     if c.special_provisions:
         parcalar.append(f"ÖH: {c.special_provisions[:40]}")
     return " ".join(parcalar)
+
+
+# ── Tarih seçici yardımcıları (Sürücüler/Araçlar — Umut'un talebi) ────
+# DÜZELTME: masaüstü uygulamasında tarih alanları QDateEdit (takvim
+# açılır pencereli) kullanıyordu; web'de bunlar düz metin kutusu
+# ("GG.AA.YYYY" ipucuyla) olarak kalmıştı — kullanıcı hatalı biçimde
+# yazabilir, format tutarsızlığı riski vardı. Artık st.date_input ile
+# gerçek bir takvimden seçiliyor, masaüstüyle tutarlı deneyim.
+def metin_to_tarih(metin: str):
+    """Veritabanında saklanan esnek biçimli tarih metnini (ISO, TR nokta/
+    slash) bir datetime.date nesnesine çevirir; ayrıştırılamazsa veya
+    boşsa None döner (st.date_input'ta boş/varsayılan alan)."""
+    from webcore.engines import ADREngine
+    dt = ADREngine.parse_date_flexible(metin)
+    return dt.date() if dt else None
+
+
+def tarih_to_metin(tarih) -> str:
+    """date_input'tan dönen date/None nesnesini veritabanına yazılacak
+    ISO (YYYY-MM-DD) metne çevirir — masaüstünün kullandığı AYNI biçim
+    (QDate "yyyy-MM-dd"), iki sistem arası veri tutarlılığı için."""
+    return tarih.strftime("%Y-%m-%d") if tarih else ""
+
+
+# Masaüstündeki VehicleEditDialog'un (asıl Araçlar sayfası) kullandığı
+# BİREBİR AYNI liste — sayfalar/arac.py burada da kullanılıyor.
+ARAC_TIPLERI = ["", "Tenteli", "Kapalı Kasa", "Tanker", "Konteyner", "Flatbed", "Diğer"]

@@ -787,3 +787,138 @@ class TestPanelGenislikDuzenlemesi:
         src = open("sayfalar/sevkiyat_editor.py", encoding="utf-8").read()
         assert 'st.columns([1.7, 1], gap="large")' in src, \
             "sütun oranı beklenen şekilde güncellenmemiş görünüyor"
+
+
+class TestTarihSeciciVeAracTipiDropdown:
+    """Özellik (Umut'un talebi): Sürücüler/Araçlar formlarındaki tarih
+    alanları artık masaüstündeki QDateEdit (takvim açılır pencereli)
+    davranışıyla tutarlı olacak şekilde st.date_input kullanıyor (düz
+    metin + 'GG.AA.YYYY' ipucu yerine). Araç Tipi de masaüstünün asıl
+    Araçlar sayfasının (VehicleEditDialog) kullandığı BİREBİR AYNI
+    listeyle bir dropdown'a çevrildi."""
+
+    def test_surucu_formunda_iki_date_input_var(self):
+        if not PG_DSN:
+            pytest.skip("ADR_PG_TEST_DSN_APP tanımlı değil")
+        from streamlit.testing.v1 import AppTest
+        t = AppTest.from_file("sayfalar/suruculer.py", default_timeout=30)
+        t.secrets["db"] = {"dsn": PG_DSN}
+        t.session_state["user"] = {"username": "u", "tenant_id": 1,
+                                   "role": "admin", "full_name": "U"}
+        t.run()
+        btn = [b for b in t.button if "Yeni Sürücü" in b.label][0]
+        btn.click().run()
+        assert not t.exception
+        etiketler = {di.label for di in t.date_input}
+        assert etiketler == {"SRC5 Bitiş", "Ehliyet Bitiş"}
+        assert not any("GG.AA.YYYY" in ti.label for ti in t.text_input)
+
+    def test_surucu_tarihi_iso_formatinda_kaydedilir(self):
+        if not PG_DSN:
+            pytest.skip("ADR_PG_TEST_DSN tanımlı değil")
+        import datetime, uuid
+        from streamlit.testing.v1 import AppTest
+        from webcore.pg import PgDatabaseManager
+
+        tc = uuid.uuid4().hex[:11]
+        t = AppTest.from_file("sayfalar/suruculer.py", default_timeout=30)
+        t.secrets["db"] = {"dsn": PG_DSN}
+        t.session_state["user"] = {"username": "u", "tenant_id": 1,
+                                   "role": "admin", "full_name": "U"}
+        t.run()
+        [b for b in t.button if "Yeni Sürücü" in b.label][0].click().run()
+        [ti for ti in t.text_input if ti.label == "Ad Soyad"][0].set_value("X")
+        [ti for ti in t.text_input if ti.label == "TC No"][0].set_value(tc)
+        t.date_input[0].set_value(datetime.date(2028, 1, 20))
+        [b for b in t.button if "Kaydet" in b.label][0].click().run()
+        assert not t.exception
+
+        db = PgDatabaseManager(PG_DSN)
+        try:
+            kayit = db.execute_one("SELECT src5_expiry FROM drivers WHERE tc_no=?", (tc,))
+            assert kayit["src5_expiry"] == "2028-01-20"
+        finally:
+            db.execute_update("DELETE FROM drivers WHERE tc_no=?", (tc,))
+
+    def test_arac_formunda_uc_date_input_ve_tip_dropdown_var(self):
+        if not PG_DSN:
+            pytest.skip("ADR_PG_TEST_DSN_APP tanımlı değil")
+        from streamlit.testing.v1 import AppTest
+        t = AppTest.from_file("sayfalar/arac.py", default_timeout=30)
+        t.secrets["db"] = {"dsn": PG_DSN}
+        t.session_state["user"] = {"username": "u", "tenant_id": 1,
+                                   "role": "admin", "full_name": "U"}
+        t.run()
+        [b for b in t.button if "Yeni Araç" in b.label][0].click().run()
+        assert not t.exception
+        etiketler = {di.label for di in t.date_input}
+        assert etiketler == {"ADR Bitiş", "Muayene Tarihi", "Muayene Bitiş"}
+        tip_sb = [sb for sb in t.selectbox if sb.label == "Araç Tipi"][0]
+        assert tip_sb.options == ["", "Tenteli", "Kapalı Kasa", "Tanker",
+                                  "Konteyner", "Flatbed", "Diğer"]
+        assert not any("GG.AA.YYYY" in ti.label for ti in t.text_input)
+
+    def test_arac_tarihleri_iso_formatinda_kaydedilir(self):
+        if not PG_DSN:
+            pytest.skip("ADR_PG_TEST_DSN tanımlı değil")
+        import datetime, uuid
+        from streamlit.testing.v1 import AppTest
+        from webcore.pg import PgDatabaseManager
+
+        plaka = "T" + uuid.uuid4().hex[:8].upper()
+        t = AppTest.from_file("sayfalar/arac.py", default_timeout=30)
+        t.secrets["db"] = {"dsn": PG_DSN}
+        t.session_state["user"] = {"username": "u", "tenant_id": 1,
+                                   "role": "admin", "full_name": "U"}
+        t.run()
+        [b for b in t.button if "Yeni Araç" in b.label][0].click().run()
+        [ti for ti in t.text_input if ti.label == "Plaka"][0].set_value(plaka)
+        t.date_input[0].set_value(datetime.date(2027, 4, 4))
+        t.date_input[1].set_value(datetime.date(2026, 5, 5))
+        t.date_input[2].set_value(datetime.date(2027, 5, 5))
+        [sb for sb in t.selectbox if sb.label == "Araç Tipi"][0].set_value("Konteyner")
+        [b for b in t.button if "Kaydet" in b.label][0].click().run()
+        assert not t.exception
+
+        db = PgDatabaseManager(PG_DSN)
+        try:
+            kayit = db.execute_one(
+                "SELECT adr_compliance_expiry, inspection_date, inspection_expiry, "
+                "vehicle_type FROM vehicles WHERE plate=?", (plaka,))
+            assert kayit["adr_compliance_expiry"] == "2027-04-04"
+            assert kayit["inspection_date"] == "2026-05-05"
+            assert kayit["inspection_expiry"] == "2027-05-05"
+            assert kayit["vehicle_type"] == "Konteyner"
+        finally:
+            db.execute_update("DELETE FROM vehicles WHERE plate=?", (plaka,))
+
+    def test_liste_disi_eski_arac_tipiyle_duzenleme_cokmuyor(self):
+        """Kenar durum: veritabanında ARAC_TIPLERI listesinde olmayan
+        eski bir değer (ör. masaüstünün ikinci, tutarsız listesinden
+        kalma 'Kamyonet') varsa düzenleme sayfası çökmemeli, o değeri
+        seçenek listesine dinamik olarak eklemeli."""
+        if not PG_DSN:
+            pytest.skip("ADR_PG_TEST_DSN tanımlı değil")
+        import uuid
+        from streamlit.testing.v1 import AppTest
+        from webcore.pg import PgDatabaseManager
+        from webcore.models import Vehicle
+
+        db = PgDatabaseManager(PG_DSN)
+        plaka = "ESKI" + uuid.uuid4().hex[:6].upper()
+        vid = db.add_vehicle(Vehicle(plate=plaka, vehicle_type="Kamyonet",
+                                     adr_compliance_expiry="ayristirilamaz"))
+        try:
+            t = AppTest.from_file("sayfalar/arac.py", default_timeout=30)
+            t.secrets["db"] = {"dsn": PG_DSN}
+            t.session_state["user"] = {"username": "u", "tenant_id": 1,
+                                       "role": "admin", "full_name": "U"}
+            t.run()
+            [b for b in t.button if b.key == f"arac_duz_{vid}"][0].click().run()
+            assert not t.exception
+            tip_sb = [sb for sb in t.selectbox if sb.label == "Araç Tipi"][0]
+            assert tip_sb.value == "Kamyonet"
+            adr_di = [di for di in t.date_input if di.label == "ADR Bitiş"][0]
+            assert adr_di.value is None, "ayrıştırılamayan tarih None olmalı, çökmemeli"
+        finally:
+            db.execute_update("DELETE FROM vehicles WHERE plate=?", (plaka,))

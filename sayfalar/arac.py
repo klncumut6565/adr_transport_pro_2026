@@ -1,6 +1,7 @@
 """Araçlar — ADR onaylı araç/dorse yönetimi (Faz 2b)."""
 import streamlit as st
-from sayfalar._ortak import db, onbellek_temizle, sayfaya_taze_girildi
+from sayfalar._ortak import (db, onbellek_temizle, sayfaya_taze_girildi,
+                             metin_to_tarih, tarih_to_metin, ARAC_TIPLERI)
 from webcore.models import Vehicle
 
 st.title("🚚 Araçlar")
@@ -74,16 +75,28 @@ with st.form("arac_formu"):
     plaka = c1.text_input("Plaka", value=st.session_state.get("arac_plate", ""))
     dorse_plaka = c2.text_input("Dorse Plakası", value=st.session_state.get("arac_trailer_plate", ""))
 
+    # DÜZELTME (Umut'un talebi): masaüstündeki QDateEdit (takvim açılır
+    # pencereli) ve QComboBox (Araç Tipi) davranışıyla tutarlı olsun diye
+    # düz metin yerine st.date_input / st.selectbox kullanılıyor.
     c3, c4 = st.columns(2)
     adr_no = c3.text_input("ADR Uygunluk Belge No", value=st.session_state.get("arac_adr_compliance_cert_no", ""))
-    adr_tarih = c4.text_input("ADR Bitiş (GG.AA.YYYY)", value=st.session_state.get("arac_adr_compliance_expiry", ""))
+    adr_tarih = c4.date_input(
+        "ADR Bitiş", value=metin_to_tarih(st.session_state.get("arac_adr_compliance_expiry", "")),
+        format="DD.MM.YYYY")
 
     c5, c6 = st.columns(2)
-    muayene_tarih = c5.text_input("Muayene Tarihi (GG.AA.YYYY)", value=st.session_state.get("arac_inspection_date", ""))
-    muayene_bitis = c6.text_input("Muayene Bitiş (GG.AA.YYYY)", value=st.session_state.get("arac_inspection_expiry", ""))
+    muayene_tarih = c5.date_input(
+        "Muayene Tarihi", value=metin_to_tarih(st.session_state.get("arac_inspection_date", "")),
+        format="DD.MM.YYYY")
+    muayene_bitis = c6.date_input(
+        "Muayene Bitiş", value=metin_to_tarih(st.session_state.get("arac_inspection_expiry", "")),
+        format="DD.MM.YYYY")
 
     c7, c8 = st.columns(2)
-    arac_tipi = c7.text_input("Araç Tipi", value=st.session_state.get("arac_vehicle_type", ""))
+    _mevcut_tip = st.session_state.get("arac_vehicle_type", "")
+    _tip_secenekleri = ARAC_TIPLERI if _mevcut_tip in ARAC_TIPLERI else [_mevcut_tip] + ARAC_TIPLERI
+    arac_tipi = c7.selectbox("Araç Tipi", _tip_secenekleri,
+                             index=_tip_secenekleri.index(_mevcut_tip))
     kapasite = c8.number_input("Maks. Kapasite (kg)", min_value=0.0, step=100.0,
                                value=float(st.session_state.get("arac_max_capacity", 0.0)))
 
@@ -98,8 +111,10 @@ if kaydet:
         st.error("Plaka zorunlu.")
     else:
         arac = Vehicle(id=duzenlenen_id, plate=plaka, trailer_plate=dorse_plaka,
-                       adr_compliance_cert_no=adr_no, adr_compliance_expiry=adr_tarih,
-                       inspection_date=muayene_tarih, inspection_expiry=muayene_bitis,
+                       adr_compliance_cert_no=adr_no,
+                       adr_compliance_expiry=tarih_to_metin(adr_tarih),
+                       inspection_date=tarih_to_metin(muayene_tarih),
+                       inspection_expiry=tarih_to_metin(muayene_bitis),
                        tank_info=tank_bilgisi, vehicle_type=arac_tipi,
                        max_capacity=kapasite)
         if duzenlenen_id:

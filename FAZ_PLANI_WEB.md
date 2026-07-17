@@ -1227,3 +1227,34 @@ gereksinimi olur) geçilecek.
 
 Masaüstünün kendi test paketi (243 test) hiç bozulmadan geçmeye devam
 ediyor.
+
+
+## Özellik: takvim seçici + araç tipi dropdown (Umut'un talebi)
+Sürücüler/Araçlar formlarındaki tarih alanları önceden düz metin
+kutusuydu ("GG.AA.YYYY" ipucuyla, elle yazım gerektiriyordu) — masaüstü
+uygulaması bu alanlarda QDateEdit (takvim açılır pencereli) kullanıyor.
+
+**Düzeltme:**
+- `sayfalar/_ortak.py`'ye `metin_to_tarih()`/`tarih_to_metin()` yardımcı
+  fonksiyonları eklendi — veritabanındaki esnek biçimli tarih metnini
+  (ADREngine.parse_date_flexible üzerinden) date nesnesine çevirir ve
+  geri ISO (YYYY-MM-DD) formatına döndürür — masaüstünün kullandığı AYNI
+  biçim (QDate "yyyy-MM-dd"), iki sistem arası veri tutarlılığı korunur.
+- Sürücüler: SRC5 Bitiş, Ehliyet Bitiş → `st.date_input`.
+- Araçlar: ADR Bitiş, Muayene Tarihi, Muayene Bitiş → `st.date_input`;
+  Araç Tipi → `st.selectbox`, masaüstünün ASIL Araçlar sayfasının
+  (VehicleEditDialog) kullandığı BİREBİR AYNI liste: ["", "Tenteli",
+  "Kapalı Kasa", "Tanker", "Konteyner", "Flatbed", "Diğer"]. (Not:
+  masaüstünde ayrıca ŞipmentEditorPage içinde farklı, tutarsız bir
+  ikinci liste de var — o, ana Araçlar sayfasına ait olmadığı için
+  kasıtlı olarak kullanılmadı.)
+
+**Kenar durum koruması:** veritabanında listede olmayan eski bir araç
+tipi (ör. masaüstünün tutarsız ikinci listesinden kalma bir değer) veya
+ayrıştırılamayan bir tarih varsa, düzenleme sayfası ÇÖKMÜYOR — mevcut
+değer listeye dinamik olarak eklenir, ayrıştırılamayan tarih boş
+(None) gösterilir.
+
+Doğrulama: her iki sayfanın doğru widget sayısıyla render olduğu, ISO
+formatında doğru kaydedildiği, liste-dışı eski veriyle çökmediği test
+edildi. Suite: 292 test.

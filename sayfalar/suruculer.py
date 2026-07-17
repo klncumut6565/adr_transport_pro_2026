@@ -1,6 +1,7 @@
 """Sürücüler — ADR sürücü yönetimi (Faz 2b)."""
 import streamlit as st
-from sayfalar._ortak import db, onbellek_temizle, sayfaya_taze_girildi
+from sayfalar._ortak import (db, onbellek_temizle, sayfaya_taze_girildi,
+                             metin_to_tarih, tarih_to_metin)
 from webcore.models import Driver
 
 st.title("🧑‍✈️ Sürücüler")
@@ -75,11 +76,18 @@ with st.form("surucu_formu"):
 
     c5, c6 = st.columns(2)
     src5_no = c5.text_input("SRC5 Belge No", value=st.session_state.get("surucu_src5_no", ""))
-    src5_tarih = c6.text_input("SRC5 Bitiş (GG.AA.YYYY)", value=st.session_state.get("surucu_src5_expiry", ""))
+    # DÜZELTME (Umut'un talebi): masaüstündeki QDateEdit (takvim açılır
+    # pencereli) davranışıyla tutarlı olsun diye düz metin yerine
+    # st.date_input kullanılıyor — format hatası riski de ortadan kalkar.
+    src5_tarih = c6.date_input(
+        "SRC5 Bitiş", value=metin_to_tarih(st.session_state.get("surucu_src5_expiry", "")),
+        format="DD.MM.YYYY")
 
     c7, c8 = st.columns(2)
     ehliyet_sinifi = c7.text_input("Ehliyet Sınıfı", value=st.session_state.get("surucu_license_class", ""))
-    ehliyet_tarih = c8.text_input("Ehliyet Bitiş (GG.AA.YYYY)", value=st.session_state.get("surucu_license_expiry", ""))
+    ehliyet_tarih = c8.date_input(
+        "Ehliyet Bitiş", value=metin_to_tarih(st.session_state.get("surucu_license_expiry", "")),
+        format="DD.MM.YYYY")
 
     bc1, bc2 = st.columns(2)
     kaydet = bc1.form_submit_button("💾 Kaydet", type="primary", use_container_width=True)
@@ -101,8 +109,9 @@ if kaydet:
         # modelinden, veritabanından, mevzuat motorundan ve sürücü
         # listesinden TAMAMEN kaldırıldı (yalnızca form alanı değil).
         surucu = Driver(id=duzenlenen_id, full_name=ad, tc_no=tc, phone=telefon,
-                        src5_no=src5_no, src5_expiry=src5_tarih,
-                        license_class=ehliyet_sinifi, license_expiry=ehliyet_tarih)
+                        src5_no=src5_no, src5_expiry=tarih_to_metin(src5_tarih),
+                        license_class=ehliyet_sinifi,
+                        license_expiry=tarih_to_metin(ehliyet_tarih))
         if duzenlenen_id:
             d.update_driver(surucu)
             onbellek_temizle()  # DÜZELTME: veri değişti, önbellek bayat kalmasın
