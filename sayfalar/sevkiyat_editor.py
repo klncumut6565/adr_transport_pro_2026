@@ -22,6 +22,8 @@ Akış:
   üretimi (WeasyPrint) ayrı bir buton, çünkü her tuş vuruşunda PDF
   render etmek gereksiz maliyetlidir.
 """
+import hashlib
+
 import streamlit as st
 import streamlit.components.v1 as components
 
@@ -495,7 +497,10 @@ with sag:
                 sender=_secili_sender, receiver=_secili_receiver,
                 driver=_secili_driver, vehicle=_secili_vehicle,
                 status_text=sev["status"], notes=sev["notes"] or "")
-            with st.expander("Önizlemeyi göster/gizle", expanded=False):
+            # Önizleme varsayılan olarak AÇIK: kapalıyken kullanıcı ürün
+            # eklediğinde evrakın güncellendiğini göremiyordu.
+            with st.expander(f"Önizlemeyi göster/gizle ({len(items)} ürün)",
+                             expanded=True):
                 from webcore.pdf import wrap_for_screen_preview
                 # DÜZELTME: JS artık dış çerçeveyi (iframe) gerçek içerik
                 # yüksekliğine göre otomatik ayarlıyor (postMessage ile,
@@ -506,10 +511,23 @@ with sag:
                 components.html(wrap_for_screen_preview(_onizleme_html),
                                height=400, scrolling=False)
 
+            # DÜZELTME (Umut'un tespiti — "ürün ekledim ama PDF'e işlenmedi"):
+            # Üretilen PDF session_state'te tutuluyordu ama YENİ ÜRÜN
+            # EKLENDİĞİNDE temizlenmiyordu. İndirme butonu her rerun'da
+            # görünmeye devam ettiği için kullanıcı GÜNCEL sanıp ESKİ
+            # (yalnızca ilk ürünü içeren) PDF'i indiriyordu.
+            # Çözüm: PDF, üretildiği HTML'in imzasıyla birlikte saklanır;
+            # içerik değiştiğinde imza tutmaz ve bayat PDF atılır.
+            _imza = hashlib.md5(_onizleme_html.encode("utf-8")).hexdigest()
+            if st.session_state.get("tasima_evraki_pdf_imza") != _imza:
+                st.session_state.pop("tasima_evraki_pdf", None)
+                st.session_state.pop("tasima_evraki_pdf_imza", None)
+
             if st.button("📄 PDF oluştur ve indir", use_container_width=True):
                 try:
                     from webcore.pdf import html_to_pdf_bytes
                     st.session_state["tasima_evraki_pdf"] = html_to_pdf_bytes(_onizleme_html)
+                    st.session_state["tasima_evraki_pdf_imza"] = _imza
                 except ImportError:
                     st.info("PDF için WeasyPrint gerekli (Cloud'da otomatik kurulur).")
                 except Exception as exc:
@@ -520,6 +538,7 @@ with sag:
                     "⬇️ İndir", data=st.session_state["tasima_evraki_pdf"],
                     file_name=f"tasima_evraki_{sev['document_no'] or 'taslak'}.pdf",
                     mime="application/pdf", use_container_width=True)
+                st.caption(f"PDF {len(items)} ürünle oluşturuldu.")
         except Exception as exc:
             st.warning(f"Önizleme oluşturulamadı: {turkce_hata_metni(exc)}")
 
